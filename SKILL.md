@@ -1,11 +1,20 @@
 ---
 name: ga-deep-dive
+displayName: GA4 Deep Dive
+version: 1.0.0
 description: Comprehensive Google Analytics 4 analysis — extracts EVERYTHING the API offers. Health scores, scroll depth, cohorts, demographics, and more.
-metadata:
-  openclaw:
-    emoji: "📊"
-    requires:
-      python: ">=3.10"
+triggers:
+  - analytics
+  - ga4
+  - google analytics
+  - traffic
+  - engagement
+  - bounce rate
+  - sessions
+  - users
+  - metrics
+  - deep dive
+  - report
 ---
 
 # GA4 Deep Dive 📊
