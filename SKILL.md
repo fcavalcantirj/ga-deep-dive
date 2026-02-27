@@ -1,184 +1,187 @@
-# GA Deep Dive
+---
+name: ga-deep-dive
+description: Comprehensive Google Analytics 4 analysis — extracts EVERYTHING the API offers. Health scores, scroll depth, cohorts, demographics, and more.
+metadata:
+  openclaw:
+    emoji: "📊"
+    requires:
+      python: ">=3.10"
+---
 
-Comprehensive Google Analytics 4 property analysis — extracts EVERYTHING the API offers.
+# GA4 Deep Dive 📊
 
-**Battle-tested:** 609 lines, 22 sections, 26 API calls.
+**The Owner's War Room** — Everything GA4 can tell you about your product.
 
-## Features
+## What You Get
 
-**374 dimensions, 95 metrics available.** This skill uses the important ones:
-
-### Core Analysis
-- **Real-time** active users
-- **Core metrics**: sessions, users, engagement rate, bounce rate, duration, pages/session, events/session
-- **User acquisition**: channel + source + medium breakdown with engagement
-- **Referrer URLs**: exact URLs driving traffic
-- **Landing pages**: entry points with bounce rates
-- **All pages**: detailed performance metrics
-- **All events**: complete event tracking with values
-
-### Technology
-- **Browsers & OS**: Chrome, Safari, Firefox with engagement by OS
-- **Devices**: desktop, mobile, tablet breakdown
-- **Screen resolutions**: what screens users have
-
-### Geography & Time
-- **Countries & cities**: with regions and engagement
-- **Hour of day**: traffic patterns by hour (UTC)
-- **Day of week**: weekday vs weekend patterns
-- **Languages**: user language distribution
-
-### User Behavior
-- **New vs returning**: behavior differences
-- **Daily trends**: session trends over time period
-- **High bounce pages**: where users leave
-- **User activity**: DAU/WAU/MAU ratios
+| Script | Purpose |
+|--------|---------|
+| `deep_dive_v3.py` | Executive summary with 7 health scores |
+| `deep_dive_v4.py` | THE FULL MONTY — scroll depth, cohorts, demographics |
+| `send_report_email.py` | Bi-weekly email reports |
 
 ### Health Scores
-- **Engagement** (engagement rate + duration)
-- **Traffic Diversity** (not too reliant on one channel)
-- **Mobile Ready** (mobile traffic presence)
-- **Content** (pages per session)
-- **Growth** (trend analysis)
+- **Engagement** — Are users engaged?
+- **Traffic Diversity** — Too reliant on one channel?
+- **Retention** — Do users come back? (DAU/MAU)
+- **Growth** — Are you growing?
+- **Content** — Any problem pages?
+- **Mobile** — Mobile-ready?
+- **Geo Diversity** — Global reach?
 
-## Setup
+### Deep Analysis (v4)
+- 📜 **Scroll Depth** — How far users actually READ
+- 🔗 **Outbound Links** — Where users click out to
+- 🔍 **Site Search** — What users search for
+- 👥 **Demographics** — Age, gender, interests
+- 🌐 **Search Console** — Organic search performance
+- 📊 **Cohort Retention** — Week-over-week retention
+- 🎯 **Audiences** — Custom audience performance
+
+---
+
+## Quick Start
+
+**Ask your OpenClaw:**
+> "Help me set up the ga-deep-dive skill for my website"
+
+Your agent will guide you through:
+1. Creating Google Cloud OAuth credentials
+2. Getting your GA4 property ID
+3. Running your first analysis
+
+---
+
+## Manual Setup
+
+### 1. Install Dependencies
 
 ```bash
-cd ~/development/ga-deep-dive
+cd ~/.openclaw/skills/ga-deep-dive
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### First-time Auth (headless server)
+### 2. Get Google OAuth Credentials
 
-1. Create OAuth credentials in Google Cloud Console
-2. Place `credentials.json` at `~/.config/ga-deep-dive/credentials.json`
-3. Run auth helper:
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a project (or use existing)
+3. Enable **Google Analytics Data API**
+4. Create **OAuth 2.0 Client ID** (Desktop app)
+5. Download JSON → save as `~/.config/ga-deep-dive/credentials.json`
+
+### 3. Get Your GA4 Property ID
+
+1. Open [Google Analytics](https://analytics.google.com/)
+2. Go to **Admin** → **Property Settings**
+3. Copy the **Property ID** (9-digit number)
+
+### 4. First Run (Auth)
+
 ```bash
-# Generate auth URL
-python3 -c "
-from google_auth_oauthlib.flow import InstalledAppFlow
-from pathlib import Path
-flow = InstalledAppFlow.from_client_secrets_file(
-    str(Path.home() / '.config/ga-deep-dive/credentials.json'),
-    ['https://www.googleapis.com/auth/analytics.readonly']
-)
-flow.redirect_uri = 'http://localhost:8085/'
-auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
-print(f'Open this URL:\n{auth_url}')
-"
+source ~/.openclaw/skills/ga-deep-dive/.venv/bin/activate
+python3 scripts/deep_dive_v3.py YOUR_PROPERTY_ID
 ```
-4. Open URL in browser, approve, copy redirect URL
-5. Extract code and exchange:
-```bash
-python3 -c "
-from google_auth_oauthlib.flow import InstalledAppFlow
-from pathlib import Path
-flow = InstalledAppFlow.from_client_secrets_file(
-    str(Path.home() / '.config/ga-deep-dive/credentials.json'),
-    ['https://www.googleapis.com/auth/analytics.readonly']
-)
-flow.redirect_uri = 'http://localhost:8085/'
-flow.fetch_token(code='YOUR_CODE_HERE')
-token_path = Path.home() / '.config/ga-deep-dive/token.json'
-token_path.write_text(flow.credentials.to_json())
-print('✅ Token saved')
-"
-```
+
+It will open a browser for OAuth consent. Approve and you're set!
+
+---
 
 ## Usage
 
+### Run Analysis
+
 ```bash
-# Activate venv
-source ~/development/ga-deep-dive/.venv/bin/activate
+# By property ID
+python3 scripts/deep_dive_v3.py 123456789
 
-# Analyze by property name
-python3 scripts/deep_dive.py solvr
+# By name (if configured)
+python3 scripts/deep_dive_v3.py mysite
 
-# Analyze by property ID
-python3 scripts/deep_dive.py 523300499
+# Full monty
+python3 scripts/deep_dive_v4.py 123456789
 
-# Custom time period
-python3 scripts/deep_dive.py solvr --days 60
-
-# List known properties
-python3 scripts/deep_dive.py --list
+# Custom period
+python3 scripts/deep_dive_v3.py mysite --days 60
 ```
 
-## Known Properties
+### Configure Property Names
 
-Edit `PROPERTIES` dict in `deep_dive.py`:
+Edit `scripts/deep_dive_v3.py` and add to `PROPERTIES`:
+
 ```python
 PROPERTIES = {
-    'solvr': '523300499',
-    'abecmed': '291040306',
-    'sonus': '517562144',
-    'reiduchat': '470924960',
-    # Add more...
+    'mysite': '123456789',
+    'blog': '987654321',
 }
 ```
 
-## Output Sections
+### Email Reports
 
-```
-🟢 REAL-TIME              — Active users now
-📊 CORE METRICS           — Sessions, users, engagement, bounce
-🚦 USER ACQUISITION       — Channel + source + medium
-🔗 REFERRERS              — Traffic source URLs
-🚪 LANDING PAGES          — Entry points
-📄 ALL PAGES              — Page performance
-⚡ ALL EVENTS             — Event tracking
-💻 TECHNOLOGY             — Browsers & OS
-📱 SCREEN RESOLUTIONS     — Display sizes
-🌍 GEOGRAPHY              — Countries & cities
-🕐 TIME PATTERNS          — Hour of day
-📅 DAY OF WEEK            — Weekday patterns
-👤 NEW VS RETURNING       — User segments
-🌐 LANGUAGES              — User languages
-📈 DAILY TREND            — Session trends
-🚪 HIGH BOUNCE PAGES      — Exit points
-📈 USER ACTIVITY          — DAU/WAU/MAU
-🏥 HEALTH SCORES          — 5 scored dimensions
-💡 RECOMMENDATIONS        — Actionable insights
+Edit `scripts/send_report_email.py`:
+- Update `recipients` list
+- Requires AgentMail API key in OpenClaw config
+
+Set up cron for bi-weekly reports:
+```bash
+# Mondays & Thursdays at 9am
+0 9 * * 1,4 cd ~/.openclaw/skills/ga-deep-dive && .venv/bin/python3 scripts/send_report_email.py
 ```
 
-## Requirements
+---
+
+## GA4 Setup Tips
+
+For best results, enable these in GA4 Admin:
+
+| Feature | Where | Why |
+|---------|-------|-----|
+| Google Signals | Data Settings → Data Collection | Demographics |
+| Search Console | Product Links → Search Console | Organic search data |
+| Enhanced Measurement | Data Streams → Web → Enhanced | Scrolls, outbound clicks |
+| Key Events | Events → Mark as key event | Track conversions |
+
+---
+
+## Example Output
 
 ```
-google-analytics-data>=0.16.0
-google-auth-oauthlib>=1.0.0
-google-auth>=2.0.0
+🏥 HEALTH SCORES
+   ✅ Engagement           ████████████████░░░░ 81/100
+   ❌ Traffic Diversity    █████░░░░░░░░░░░░░░░ 27/100
+   ✅ Mobile               ██████████████████░░ 90/100
+   
+   🎯 OVERALL: 66/100 (Grade B)
+
+💡 ACTIONABLE INSIGHTS
+   🔴 72% traffic from Direct — DIVERSIFY NOW
+   🚨 Fix /agents/me/claim — 100% bounce rate
+   🟢 China has highest quality traffic — consider localization
 ```
+
+---
 
 ## Troubleshooting
 
-### Token expired
-Delete `~/.config/ga-deep-dive/token.json` and re-auth.
+**"Token expired"**
+```bash
+rm ~/.config/ga-deep-dive/token.json
+# Run again to re-auth
+```
 
-### Permission denied
-Make sure the Google account has access to the GA4 property.
-Check property ID with `--list` or in GA4 Admin → Property Settings.
+**"No demographic data"**
+- Enable Google Signals in GA4
+- Need 50+ users per segment (privacy threshold)
 
-### Missing dimensions
-Some dimensions require specific GA4 setup (e.g., ecommerce, custom dimensions).
-The script handles missing data gracefully.
+**"No Search Console data"**
+- Link Search Console in GA4 Admin → Product Links
+- Wait 24-48h for data sync
 
-## API Constraints Discovered
+---
 
-- **10 metrics per request limit** — Queries with >10 metrics fail silently. Script splits large queries.
-- **DAU/WAU/MAU ratios** — GA4 returns these relative to rolling windows, not your date range. Script calculates manually.
-- **Conversions** — Only shows if events are marked as "key events" in GA4 Admin.
-- **Campaign data** — Requires UTM parameters on inbound links.
+## License
 
-## Changelog
+MIT — Built by [ClaudiusThePirateEmperor](https://solvr.dev/agents/agent_ClaudiusThePirateEmperor) 🏴‍☠️
 
-### v2 (2026-02-16)
-- Fixed: Core metrics blank (10-metric API limit)
-- Fixed: DAU/MAU ratios showing >100%
-- Fixed: Growth score hardcoded
-- Added: Campaigns & UTM tracking section
-- Added: Key Events / Conversions section
-- Added: Conversions to core metrics
-- Added: User engagement duration
-- Improved: Week-over-week growth calculation
+Repository: https://github.com/fcavalcantirj/ga-deep-dive
