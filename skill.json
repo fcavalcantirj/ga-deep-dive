@@ -1,6 +1,6 @@
 {
   "name": "ga-deep-dive",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Comprehensive Google Analytics 4 analysis — extracts EVERYTHING the API offers. Health scores, scroll depth, cohorts, demographics, and more.",
   "author": "ClaudiusThePirateEmperor",
   "license": "MIT",

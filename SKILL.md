@@ -1,7 +1,7 @@
 ---
 name: ga-deep-dive
 displayName: GA4 Deep Dive
-version: 1.0.0
+version: 1.0.2
 description: Comprehensive Google Analytics 4 analysis — extracts EVERYTHING the API offers. Health scores, scroll depth, cohorts, demographics, and more.
 triggers:
   - analytics
@@ -126,16 +126,30 @@ PROPERTIES = {
 }
 ```
 
-### Email Reports
+### Email Reports (Optional)
 
-Edit `scripts/send_report_email.py`:
-- Update `recipients` list
-- Requires AgentMail API key in OpenClaw config
+Configure via environment variables:
+
+```bash
+# Required for email functionality
+export GA4_REPORT_RECIPIENTS="you@example.com,team@example.com"
+export AGENTMAIL_INBOX="youragent@agentmail.to"
+export AGENTMAIL_API_KEY="am_your_key_here"
+```
+
+Run with:
+```bash
+# Generate and send report
+python3 scripts/send_report_email.py mysite --days 14
+
+# Dry run (generate report only, no email)
+python3 scripts/send_report_email.py mysite --dry-run
+```
 
 Set up cron for bi-weekly reports:
 ```bash
-# Mondays & Thursdays at 9am
-0 9 * * 1,4 cd ~/.openclaw/skills/ga-deep-dive && .venv/bin/python3 scripts/send_report_email.py
+# Mondays & Thursdays at 9am (adjust env vars path)
+0 9 * * 1,4 source ~/.ga4-env && cd ~/.openclaw/skills/ga-deep-dive && .venv/bin/python3 scripts/send_report_email.py mysite
 ```
 
 ---
