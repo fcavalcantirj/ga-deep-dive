@@ -1,7 +1,7 @@
 ---
 name: ga-deep-dive
 displayName: GA4 Deep Dive
-version: 1.0.2
+version: 1.0.3
 description: Comprehensive Google Analytics 4 analysis — extracts EVERYTHING the API offers. Health scores, scroll depth, cohorts, demographics, and more.
 triggers:
   - analytics
