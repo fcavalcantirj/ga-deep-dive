@@ -8,6 +8,8 @@ are additive — zero, some, or all of them may appear in the output.
 
 from typing import Any, Dict, List
 
+from .fetch_util import blank_label
+
 DOMINANT_CHANNEL_SHARE_THRESHOLD = 0.6
 LOW_STICKINESS_DAU_PER_MAU_THRESHOLD = 0.1
 STRONG_GROWTH_SCORE_THRESHOLD = 80
@@ -47,12 +49,13 @@ def _problem_page_insight(content: Dict[str, Any]) -> List[Dict[str, str]]:
     if not problem_pages:
         return []
     worst = problem_pages[0]
+    path = blank_label(worst.get("path"), "(direct entry)")
     suffix = f" ({len(problem_pages)} pages affected)" if len(problem_pages) > 1 else ""
     return [
         {
             "icon": "🚨",
-            "message": f"{worst['path']} has a {worst['bounce_pct'] * 100:.0f}% bounce rate{suffix}",
-            "action": f"Fix landing page {worst['path']}",
+            "message": f"{path} has a {worst['bounce_pct'] * 100:.0f}% bounce rate{suffix}",
+            "action": f"Fix landing page {path}",
         }
     ]
 

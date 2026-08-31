@@ -3,7 +3,7 @@
 from typing import Any, Dict
 
 from .backends.base import Backend
-from .fetch_util import order_by_metric, safe_ratio
+from .fetch_util import blank_label, order_by_metric, safe_ratio
 
 _WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
@@ -36,7 +36,7 @@ def events(backend: Backend, days: int) -> Dict[str, Any]:
     )
     events_list = [
         {
-            "name": row.get("eventName", "(not set)"),
+            "name": blank_label(row.get("eventName")),
             "count": row.get("eventCount", 0),
             "per_user": float(row.get("eventCountPerUser", 0) or 0),
         }

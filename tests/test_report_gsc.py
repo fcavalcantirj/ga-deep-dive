@@ -68,3 +68,28 @@ def test_gsc_telegram_suppressed_returns_empty_string():
 
 def test_gsc_full_missing_key_returns_empty_string():
     assert report_gsc.gsc_full({"property": "abecmed"}) == ""
+
+
+# ---- top-N display cap --------------------------------------------------------------
+
+MANY_QUERIES_DATA = {
+    "property": "esp-atlas",
+    "gsc": {
+        "available": True,
+        "totals": {"clicks": 100, "impressions": 1000, "ctr": 0.1, "avg_position": 5.0},
+        "top_queries": [{"query": f"query {i}", "clicks": 100 - i, "impressions": 500, "ctr": 0.1, "position": 5.0} for i in range(15)],
+        "striking_distance": [],
+    },
+}
+
+
+def test_gsc_full_caps_top_queries_at_ten():
+    output = report_gsc.gsc_full(MANY_QUERIES_DATA)
+    assert "query 9" in output
+    assert "query 10" not in output
+
+
+def test_gsc_telegram_caps_top_queries_at_ten():
+    output = report_gsc.gsc_telegram(MANY_QUERIES_DATA)
+    assert "query 9" in output
+    assert "query 10" not in output

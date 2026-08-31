@@ -87,3 +87,12 @@ def test_time_patterns_empty_backend_returns_empty_lists():
     backend = _backend()
     result = fetch_activity.time_patterns(backend, days=7)
     assert result == {"day_of_week": [], "daily": []}
+
+
+# ---- blank labels -------------------------------------------------------------------
+
+
+def test_event_blank_name_gets_not_set_label():
+    backend = _backend(events=[{"eventName": "", "eventCount": 5, "eventCountPerUser": 1.0}])
+    result = fetch_activity.events(backend, days=7)
+    assert result["events"][0]["name"] == "(not set)"

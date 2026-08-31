@@ -7,7 +7,7 @@ formatting.
 from typing import Any, Dict
 
 from .backends.base import Backend
-from .fetch_util import order_by_metric, safe_ratio, total_of
+from .fetch_util import blank_label, order_by_metric, safe_ratio, total_of
 
 SCROLL_BUCKETS = ["10", "25", "50", "75", "90", "100"]
 SCROLL_COMPLETION_BUCKETS = {"90", "100"}
@@ -46,7 +46,7 @@ def scroll_depth(backend: Backend, days: int) -> Dict[str, Any]:
     pageviews: Dict[str, float] = {}
     deep_scroll: Dict[str, float] = {}
     for row in page_rows:
-        path = row.get("pagePath", "/")
+        path = blank_label(row.get("pagePath"), "(direct entry)")
         views = float(row.get("screenPageViews", 0) or 0)
         pageviews[path] = max(pageviews.get(path, 0.0), views)
         if str(row.get("percentScrolled")) in SCROLL_COMPLETION_BUCKETS:
@@ -67,7 +67,11 @@ def user_flow(backend: Backend, days: int) -> Dict[str, Any]:
         extra={"row_key": "flow_entries", "order_bys": order_by_metric("sessions")},
     )
     entries = [
-        {"path": row.get("landingPagePlusQueryString", "/"), "entries": row.get("sessions", 0), "bounce_pct": float(row.get("bounceRate", 0) or 0)}
+        {
+            "path": blank_label(row.get("landingPagePlusQueryString"), "(direct entry)"),
+            "entries": row.get("sessions", 0),
+            "bounce_pct": float(row.get("bounceRate", 0) or 0),
+        }
         for row in sorted(rows, key=lambda r: float(r.get("sessions", 0) or 0), reverse=True)
     ]
     return {"entries": entries}
@@ -127,7 +131,7 @@ def mobile_devices(backend: Backend, days: int) -> Dict[str, Any]:
         ["mobileDeviceModel"], ["sessions"], days, extra={"row_key": "mobile_devices", "order_bys": order_by_metric("sessions")}
     )
     models = [
-        {"model": row.get("mobileDeviceModel"), "sessions": row.get("sessions", 0)}
+        {"model": blank_label(row.get("mobileDeviceModel"), "(unknown device)"), "sessions": row.get("sessions", 0)}
         for row in rows
         if row.get("mobileDeviceModel") not in MOBILE_MODEL_EXCLUDED
     ]

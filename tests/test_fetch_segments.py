@@ -44,3 +44,18 @@ def test_user_segments_empty_backend_returns_empty_lists():
     backend = _backend()
     result = fetch_segments.user_segments(backend, days=7)
     assert result == {"new_vs_returning": [], "by_device": []}
+
+
+# ---- blank labels -------------------------------------------------------------------
+
+
+def test_new_vs_returning_blank_segment_gets_not_set_label():
+    backend = _backend(segments_new_returning=[{"newVsReturning": "", "sessions": 10, "engagementRate": 0.2}])
+    result = fetch_segments.user_segments(backend, days=7)
+    assert result["new_vs_returning"][0]["segment"] == "(not set)"
+
+
+def test_by_device_blank_device_gets_not_set_label():
+    backend = _backend(segments_device=[{"deviceCategory": "", "sessions": 10, "engagementRate": 0.2}])
+    result = fetch_segments.user_segments(backend, days=7)
+    assert result["by_device"][0]["device"] == "(not set)"

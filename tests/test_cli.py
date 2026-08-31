@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from gadeepdive import cli
+from gadeepdive import cli, delivery
 
 from .fixtures import FakeBackend
 
@@ -150,6 +150,41 @@ def test_build_arg_parser_defaults():
     assert args.json is False
     assert args.no_gsc is False
     assert args.no_telegram is False
+    assert args.deliver is None
+
+
+# ---- --deliver telegram ------------------------------------------------------------
+
+
+def test_main_deliver_telegram_happy_path(monkeypatch, capsys):
+    _install_fake_backend(monkeypatch)
+    delivered = []
+    monkeypatch.setitem(delivery.DELIVERY_SENDERS, "telegram", lambda text: delivered.append(text))
+    exit_code = cli.main(["esp-atlas", "--deliver", "telegram", "--json"])
+    assert exit_code == 0
+    assert len(delivered) == 1
+    assert "GA4 DEEP DIVE v3" in delivered[0]
+    captured = capsys.readouterr()
+    assert "Delivered to telegram." in captured.err
+
+
+def test_main_deliver_telegram_missing_env_exits_nonzero(monkeypatch, capsys):
+    _install_fake_backend(monkeypatch)
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    exit_code = cli.main(["esp-atlas", "--deliver", "telegram", "--json"])
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert "TELEGRAM_BOT_TOKEN" in captured.err
+    assert captured.out == ""  # never printed the report if delivery failed
+
+
+def test_build_arg_parser_deliver_choices():
+    parser = cli.build_arg_parser()
+    args = parser.parse_args(["esp-atlas", "--deliver", "telegram"])
+    assert args.deliver == "telegram"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["esp-atlas", "--deliver", "carrier-pigeon"])
 
 
 # ---- collect_report_data (integration of fetch+health) --------------------------------
@@ -328,3 +363,56 @@ def test_main_json_no_gsc_sets_gsc_null(monkeypatch, capsys):
     cli.main(["esp-atlas", "--json", "--no-gsc"])
     payload = json.loads(capsys.readouterr().out)
     assert payload["gsc"] is None
+
+
+# ---- section order (oracle checklist) ---------------------------------------------
+
+
+def test_main_full_report_sections_appear_in_oracle_order(monkeypatch, capsys):
+    _install_full_fake_backend_with_gsc(monkeypatch)
+    cli.main(["esp-atlas", "--no-telegram"])
+    out = capsys.readouterr().out
+    ordered_markers = [
+        "PART 1: EXECUTIVE SUMMARY (V3)",
+        "📊 EXECUTIVE SUMMARY",
+        "🏥 HEALTH DASHBOARD",
+        "🚦 ACQUISITION",
+        "🌍 GEOGRAPHY",
+        "📄 CONTENT",
+        "👤 USER SEGMENTS",
+        "⚡ EVENTS",
+        "🕐 TIME PATTERNS",
+        "💻 TECHNOLOGY",
+        "💡 ACTIONABLE INSIGHTS",
+        "PART 2: THE FULL MONTY (V4)",
+        "📜 SCROLL DEPTH",
+        "🚪 USER FLOW",
+        "🎯 GA4 AUDIENCES",
+        "🕐 HOURLY PERFORMANCE",
+        "📅 ACQUISITION OVER TIME",
+        "📱 MOBILE DEVICES",
+        "✅ FULL MONTY COMPLETE",
+        "🌐 SEARCH CONSOLE",
+    ]
+    positions = [out.index(marker) for marker in ordered_markers]
+    assert positions == sorted(positions)
+
+
+# ---- top-N caps: full/telegram truncate, --json keeps the full set ----------------
+
+MANY_COUNTRIES_ROWS = [{"country": f"Country {i}", "sessions": 100 - i, "engagedSessions": 50, "engagementRate": 0.5} for i in range(15)]
+
+
+def test_main_geography_caps_display_but_json_keeps_full_set(monkeypatch, capsys):
+    dim_rows = {**DIM_ROWS_FULL, "geo_country": MANY_COUNTRIES_ROWS}
+    fake = FakeBackend(realtime_rows=[{"activeUsers": 3}], exec_rows=EXEC_ROWS, activity_row=ACTIVITY_ROW, dim_rows=dim_rows)
+    monkeypatch.setattr(cli, "_make_backend", lambda backend_name, prop: fake)
+
+    cli.main(["esp-atlas", "--no-telegram"])
+    full_out = capsys.readouterr().out
+    assert "Country 9" in full_out
+    assert "Country 10" not in full_out
+
+    cli.main(["esp-atlas", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert len(payload["geography"]["countries"]) == 15

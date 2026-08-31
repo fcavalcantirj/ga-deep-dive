@@ -61,6 +61,15 @@ def test_problem_page_insight_silent_when_none():
     assert insights.compute({"content": {"problem_pages": []}}) == []
 
 
+def test_problem_page_insight_never_prints_a_blank_page_name():
+    data = {"content": {"problem_pages": [{"path": "", "sessions": 5, "bounce_pct": 1.0}]}}
+    result = insights.compute(data)
+    matches = [i for i in result if i["icon"] == "🚨"]
+    assert len(matches) == 1
+    assert "(direct entry)" in matches[0]["message"]
+    assert not matches[0]["message"].startswith(" ")
+
+
 # ---- strong WoW growth -----------------------------------------------------------------
 
 

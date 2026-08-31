@@ -6,6 +6,9 @@ from typing import Any, Dict
 
 from .format import fmt_num, fmt_pct, section_header_full, section_header_telegram, star_string
 
+FIRST_TOUCH_DISPLAY_LIMIT = 8
+GEOGRAPHY_DISPLAY_LIMIT = 10
+
 # ---- acquisition ------------------------------------------------------------------
 
 
@@ -38,7 +41,7 @@ def acquisition_full(data: Dict[str, Any]) -> str:
     if not first_touch:
         lines.append("      no first-touch data")
     else:
-        for ft in first_touch[:5]:
+        for ft in first_touch[:FIRST_TOUCH_DISPLAY_LIMIT]:
             lines.append(f"      {ft['source']} / {ft['medium']:<12} {fmt_num(ft['sessions']):>8}  {fmt_pct(ft['share'])}")
 
     return "\n".join(lines)
@@ -65,7 +68,7 @@ def acquisition_telegram(data: Dict[str, Any]) -> str:
     first_touch = acquisition.get("first_touch", [])
     if first_touch:
         lines.append("First-Touch:")
-        for ft in first_touch[:5]:
+        for ft in first_touch[:FIRST_TOUCH_DISPLAY_LIMIT]:
             lines.append(f"{ft['source']}/{ft['medium']}: {fmt_num(ft['sessions'])} ({fmt_pct(ft['share'])})")
 
     return "\n".join(lines)
@@ -84,7 +87,7 @@ def geography_full(data: Dict[str, Any]) -> str:
     else:
         lines.append(f"\n   {'Country':<18} {'Sessions':>10} {'Share':>8} {'Engaged':>9} {'Quality':>9}")
         lines.append(f"   {'─' * 60}")
-        for c in countries:
+        for c in countries[:GEOGRAPHY_DISPLAY_LIMIT]:
             lines.append(
                 f"   {c['name']:<18} {fmt_num(c['sessions']):>10} {fmt_pct(c['share']):>8} "
                 f"{fmt_pct(c['engaged_pct']):>9} {star_string(c['stars']):>9}"
@@ -109,7 +112,7 @@ def geography_telegram(data: Dict[str, Any]) -> str:
     if not countries:
         lines.append("no geography data")
     else:
-        for c in countries:
+        for c in countries[:GEOGRAPHY_DISPLAY_LIMIT]:
             lines.append(f"{c['name']}: {fmt_num(c['sessions'])} ({fmt_pct(c['share'])}) {star_string(c['stars'])}")
 
     languages = geography.get("languages", [])

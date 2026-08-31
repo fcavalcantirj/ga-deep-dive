@@ -45,6 +45,26 @@ def test_events_telegram_has_no_box_art():
     assert "commit_pushed" in output
 
 
+# ---- top-N display cap -------------------------------------------------------------
+
+MANY_EVENTS_DATA = {
+    "events": {"events": [{"name": f"event_{i}", "count": 100 - i, "per_user": 1.0} for i in range(20)]},
+    "time_patterns": {},
+}
+
+
+def test_events_full_caps_at_fifteen():
+    output = report_activity.events_full(MANY_EVENTS_DATA)
+    assert "event_14" in output
+    assert "event_15" not in output
+
+
+def test_events_telegram_caps_at_fifteen():
+    output = report_activity.events_telegram(MANY_EVENTS_DATA)
+    assert "event_14" in output
+    assert "event_15" not in output
+
+
 # ---- time patterns --------------------------------------------------------------------
 
 

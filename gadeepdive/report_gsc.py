@@ -9,6 +9,8 @@ from typing import Any, Dict
 
 from .format import fmt_num, fmt_pct, section_header_full, section_header_telegram
 
+TOP_QUERIES_DISPLAY_LIMIT = 10
+
 
 def gsc_full(data: Dict[str, Any]) -> str:
     gsc = data.get("gsc")
@@ -33,7 +35,7 @@ def gsc_full(data: Dict[str, Any]) -> str:
     else:
         lines.append(f"      {'Query':<30} {'Clicks':>8} {'Impr':>10} {'CTR':>8} {'Pos':>6}")
         lines.append(f"      {'─' * 64}")
-        for q in top_queries:
+        for q in top_queries[:TOP_QUERIES_DISPLAY_LIMIT]:
             lines.append(
                 f"      {q['query']:<30} {fmt_num(q['clicks']):>8} {fmt_num(q['impressions']):>10} "
                 f"{fmt_pct(q['ctr']):>8} {q['position']:>6.1f}"
@@ -69,7 +71,7 @@ def gsc_telegram(data: Dict[str, Any]) -> str:
     top_queries = gsc.get("top_queries", [])
     if top_queries:
         lines.append("Top Queries:")
-        for q in top_queries:
+        for q in top_queries[:TOP_QUERIES_DISPLAY_LIMIT]:
             lines.append(f"{q['query']}: {fmt_num(q['clicks'])} clicks, pos {q['position']:.1f}")
 
     striking = gsc.get("striking_distance", [])

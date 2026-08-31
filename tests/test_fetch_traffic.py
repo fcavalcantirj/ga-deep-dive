@@ -134,3 +134,24 @@ def test_geography_empty_backend_returns_empty_sections():
     backend = _backend()
     result = fetch_traffic.geography(backend, days=7)
     assert result == {"countries": [], "languages": []}
+
+
+# ---- blank labels -------------------------------------------------------------------
+
+
+def test_acquisition_channel_blank_name_gets_not_set_label():
+    backend = _backend(acq_channels=[{"sessionDefaultChannelGroup": "", "sessions": 10, "engagedSessions": 5, "bounceRate": 0.2, "averageSessionDuration": 30.0}])
+    result = fetch_traffic.acquisition(backend, days=7)
+    assert result["channels"][0]["name"] == "(not set)"
+
+
+def test_geography_blank_country_gets_not_set_label():
+    backend = _backend(geo_country=[{"country": "", "sessions": 10, "engagedSessions": 5, "engagementRate": 0.3}])
+    result = fetch_traffic.geography(backend, days=7)
+    assert result["countries"][0]["name"] == "(not set)"
+
+
+def test_geography_blank_language_gets_not_set_label():
+    backend = _backend(geo_language=[{"language": "", "sessions": 10}])
+    result = fetch_traffic.geography(backend, days=7)
+    assert result["languages"][0]["name"] == "(not set)"

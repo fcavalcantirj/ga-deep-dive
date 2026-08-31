@@ -5,7 +5,7 @@ resolutions.
 from typing import Any, Dict
 
 from .backends.base import Backend
-from .fetch_util import order_by_metric, safe_ratio
+from .fetch_util import blank_label, order_by_metric, safe_ratio
 
 
 def technology(backend: Backend, days: int) -> Dict[str, Any]:
@@ -18,7 +18,7 @@ def technology(backend: Backend, days: int) -> Dict[str, Any]:
     )
     browsers = [
         {
-            "name": row.get("browser", "(not set)"),
+            "name": blank_label(row.get("browser")),
             "sessions": row.get("sessions", 0),
             "engaged_pct": safe_ratio(row.get("engagedSessions"), row.get("sessions")),
         }
@@ -32,7 +32,7 @@ def technology(backend: Backend, days: int) -> Dict[str, Any]:
         extra={"row_key": "tech_resolution", "order_bys": order_by_metric("sessions")},
     )
     resolutions = [
-        {"resolution": row.get("screenResolution", "(not set)"), "sessions": row.get("sessions", 0)}
+        {"resolution": blank_label(row.get("screenResolution")), "sessions": row.get("sessions", 0)}
         for row in sorted(resolution_rows, key=lambda r: float(r.get("sessions", 0) or 0), reverse=True)
     ]
 

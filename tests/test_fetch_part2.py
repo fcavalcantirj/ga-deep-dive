@@ -187,3 +187,25 @@ def test_mobile_devices_empty_backend_returns_empty_list():
     backend = _backend()
     result = fetch_part2.mobile_devices(backend, days=7)
     assert result == {"models": []}
+
+
+# ---- blank labels -------------------------------------------------------------------
+
+
+def test_scroll_depth_blank_page_path_gets_direct_entry_label():
+    backend = _backend(scroll_by_page=[{"pagePath": "", "percentScrolled": "90", "eventCount": 10, "screenPageViews": 50}])
+    result = fetch_part2.scroll_depth(backend, days=7)
+    paths = [p["path"] for p in result["top_pages"]]
+    assert "(direct entry)" in paths
+
+
+def test_user_flow_blank_landing_page_gets_direct_entry_label():
+    backend = _backend(flow_entries=[{"landingPagePlusQueryString": "", "sessions": 50, "bounceRate": 0.4}])
+    result = fetch_part2.user_flow(backend, days=7)
+    assert result["entries"][0]["path"] == "(direct entry)"
+
+
+def test_mobile_devices_blank_model_gets_unknown_device_label():
+    backend = _backend(mobile_devices=[{"mobileDeviceModel": "", "sessions": 5}])
+    result = fetch_part2.mobile_devices(backend, days=7)
+    assert result["models"][0]["model"] == "(unknown device)"

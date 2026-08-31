@@ -5,7 +5,7 @@ the by-device breakdown (also feeds the §Part C Mobile health score).
 from typing import Any, Dict
 
 from .backends.base import Backend
-from .fetch_util import order_by_metric, share_of_total, total_of
+from .fetch_util import blank_label, order_by_metric, share_of_total, total_of
 
 
 def user_segments(backend: Backend, days: int) -> Dict[str, Any]:
@@ -18,7 +18,7 @@ def user_segments(backend: Backend, days: int) -> Dict[str, Any]:
     )
     new_vs_returning = [
         {
-            "segment": row.get("newVsReturning", "(not set)"),
+            "segment": blank_label(row.get("newVsReturning")),
             "sessions": row.get("sessions", 0),
             "engagement_pct": float(row.get("engagementRate", 0) or 0),
         }
@@ -34,7 +34,7 @@ def user_segments(backend: Backend, days: int) -> Dict[str, Any]:
     total_sessions = total_of(device_rows, "sessions")
     by_device = [
         {
-            "device": row.get("deviceCategory", "(not set)"),
+            "device": blank_label(row.get("deviceCategory")),
             "sessions": row.get("sessions", 0),
             "share": share_of_total(row.get("sessions"), total_sessions),
             "engagement_pct": float(row.get("engagementRate", 0) or 0),

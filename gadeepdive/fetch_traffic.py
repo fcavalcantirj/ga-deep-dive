@@ -5,7 +5,7 @@ function takes a `Backend` and returns a plain dict — no formatting.
 from typing import Any, Dict
 
 from .backends.base import Backend
-from .fetch_util import order_by_metric, safe_ratio, share_of_total, total_of
+from .fetch_util import blank_label, order_by_metric, safe_ratio, share_of_total, total_of
 
 CHANNEL_METRICS = ["sessions", "engagedSessions", "bounceRate", "averageSessionDuration"]
 COUNTRY_METRICS = ["sessions", "engagedSessions", "engagementRate"]
@@ -33,7 +33,7 @@ def acquisition(backend: Backend, days: int) -> Dict[str, Any]:
     total_sessions = total_of(channel_rows, "sessions")
     channels = [
         {
-            "name": row.get("sessionDefaultChannelGroup", "(not set)"),
+            "name": blank_label(row.get("sessionDefaultChannelGroup")),
             "sessions": row.get("sessions", 0),
             "share": share_of_total(row.get("sessions"), total_sessions),
             "engaged_pct": safe_ratio(row.get("engagedSessions"), row.get("sessions")),
@@ -91,7 +91,7 @@ def geography(backend: Backend, days: int) -> Dict[str, Any]:
     total_sessions = total_of(country_rows, "sessions")
     countries = [
         {
-            "name": row.get("country", "(not set)"),
+            "name": blank_label(row.get("country")),
             "sessions": row.get("sessions", 0),
             "share": share_of_total(row.get("sessions"), total_sessions),
             "engaged_pct": safe_ratio(row.get("engagedSessions"), row.get("sessions")),
@@ -110,7 +110,7 @@ def geography(backend: Backend, days: int) -> Dict[str, Any]:
     lang_total = total_of(language_rows, "sessions")
     languages = [
         {
-            "name": row.get("language", "(not set)"),
+            "name": blank_label(row.get("language")),
             "sessions": row.get("sessions", 0),
             "share": share_of_total(row.get("sessions"), lang_total),
         }
