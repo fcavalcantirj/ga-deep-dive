@@ -11,7 +11,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from . import fetch, fetch_activity, fetch_content, fetch_gsc, fetch_part2, fetch_segments, fetch_technology, fetch_traffic, health, insights, registry, report
+from . import delivery, fetch, fetch_activity, fetch_content, fetch_gsc, fetch_part2, fetch_segments, fetch_technology, fetch_traffic, health, insights, registry, report
 from .backends.composio import ComposioBackend
 from .backends.native import NativeBackend
 
@@ -29,6 +29,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-gsc", action="store_true", help="Skip the Google Search Console section")
     parser.add_argument("--no-telegram", action="store_true", help="Skip the telegram-condensed variant")
     parser.add_argument("--backend", choices=sorted(BACKEND_FACTORIES), default="composio", help="Data backend (default: composio)")
+    parser.add_argument(
+        "--deliver", choices=sorted(delivery.DELIVERY_SENDERS), default=None, help="Deliver the telegram-variant report to a channel"
+    )
     return parser
 
 
@@ -100,6 +103,14 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     backend = _make_backend(args.backend, prop)
     data = collect_report_data(backend, args.property, args.days, no_gsc=args.no_gsc)
+
+    if args.deliver:
+        try:
+            delivery.deliver(args.deliver, report.render(data, "telegram"))
+        except delivery.DeliveryError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+        print(f"Delivered to {args.deliver}.", file=sys.stderr)
 
     if args.json:
         print(json.dumps(report.render(data, "json"), indent=2))
