@@ -29,7 +29,7 @@ needed**:
 
 ```
 deep-dive <property> [--days N] [--json] [--no-gsc] [--no-telegram] \
-                      [--deliver telegram] [--backend composio|native]
+                      [--deliver telegram] [--dashboard PATH] [--backend composio|native]
 ```
 
 - `<property>` resolves through the property registry (`config/properties.json`,
@@ -37,8 +37,13 @@ deep-dive <property> [--days N] [--json] [--no-gsc] [--no-telegram] \
 - Defaults are all-in: GSC and the telegram-condensed variant ship unless you
   pass `--no-gsc` / `--no-telegram`.
 - `--json` emits the same data machine-readable, skipping ANSI art.
-- `--deliver telegram` sends the telegram-variant report straight to Telegram
-  (reads `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` from the environment).
+- `--dashboard PATH` renders the visual dashboard PNG (`gadeepdive/charts.py`,
+  dark-themed portrait, KPI tiles/health/acquisition/geography/hourly/funnel/GSC
+  panels) to `PATH` without sending it anywhere.
+- `--deliver telegram` renders that same dashboard PNG and sends it to
+  Telegram as a photo with a short caption (reads `TELEGRAM_BOT_TOKEN` and
+  `TELEGRAM_CHAT_ID`/`TELEGRAM_HOME_CHANNEL` from the environment) — mobile
+  gets one readable image instead of the old wall-of-text.
 - `--backend native` switches to the optional `google-analytics-data` SDK
   OAuth flow instead of Composio, for environments without Composio access.
 
