@@ -1,9 +1,9 @@
 """North-star pacing math — pure functions over an optional per-property
-"goal" (registry.py) and the already-fetched executive summary.
+"goal" (registry.py) and the already-fetched goal totals.
 
-No GA4 call of its own: there is no persisted lifetime counter to query, so
-"current total" reads off the current-period value of the goal's metric in
-`data["executive"]` — the only running total this app already has.
+No GA4 call of its own: `data["goal_totals"]` (fetch.northstar_totals) is
+the lifetime counter — an explicit all-time dateRange query — and the 28-day
+daily rate, both fetched by cli.py before this module ever runs.
 """
 
 from datetime import date, datetime
@@ -23,10 +23,9 @@ def compute_pacing(data: Dict[str, Any], goal: Optional[Dict[str, Any]]) -> Opti
 
     metric = goal["metric"]
     target = float(goal["target"])
-    executive = data.get("executive") or {}
-    current_total = float((executive.get("current") or {}).get(metric, 0) or 0)
-    previous_total = float((executive.get("previous") or {}).get(metric, 0) or 0)
-    period_days = int(data.get("days") or 1) or 1
+    totals = data.get("goal_totals") or {}
+    current_total = float(totals.get("current_total", 0) or 0)
+    current_rate = float(totals.get("current_rate", 0) or 0)
 
     generated_at = str(data.get("generated_at", ""))
     today = _parse_date(generated_at[:10]) if generated_at[:10] else date.today()
@@ -36,7 +35,6 @@ def compute_pacing(data: Dict[str, Any], goal: Optional[Dict[str, Any]]) -> Opti
     percent = (current_total / target * 100) if target else 0.0
     remaining = max(target - current_total, 0.0)
     required_rate = (remaining / days_left) if days_left else remaining
-    current_rate = (current_total - previous_total) / period_days
 
     return {
         "label": goal.get("label") or metric,

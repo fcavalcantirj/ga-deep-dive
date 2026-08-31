@@ -115,7 +115,10 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     backend = _make_backend(args.backend, prop)
     data = collect_report_data(backend, args.property, args.days, no_gsc=args.no_gsc)
-    data["goal"] = prop.get("goal")
+    goal = prop.get("goal")
+    data["goal"] = goal
+    if goal:
+        data["goal_totals"] = fetch.northstar_totals(backend, goal["metric"])
 
     if args.dashboard:
         charts.compose_dashboard(data, args.property, args.days, args.dashboard)
