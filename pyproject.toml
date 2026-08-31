@@ -9,6 +9,7 @@ description = "GA4 Deep Dive — Composio-backed, property-parameterized GA4 rep
 requires-python = ">=3.10"
 dependencies = [
     "composio>=0.18.0",
+    "matplotlib>=3.8.0",
 ]
 
 [project.scripts]

@@ -7,11 +7,13 @@ telegram variant are produced unless explicitly suppressed.
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from . import delivery, fetch, fetch_activity, fetch_content, fetch_gsc, fetch_part2, fetch_segments, fetch_technology, fetch_traffic, health, insights, registry, report
+from . import charts, delivery, fetch, fetch_activity, fetch_content, fetch_gsc, fetch_part2, fetch_segments, fetch_technology, fetch_traffic, health, insights, registry, report
 from .backends.composio import ComposioBackend
 from .backends.native import NativeBackend
 
@@ -30,8 +32,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-telegram", action="store_true", help="Skip the telegram-condensed variant")
     parser.add_argument("--backend", choices=sorted(BACKEND_FACTORIES), default="composio", help="Data backend (default: composio)")
     parser.add_argument(
-        "--deliver", choices=sorted(delivery.DELIVERY_SENDERS), default=None, help="Deliver the telegram-variant report to a channel"
+        "--deliver", choices=sorted(delivery.DELIVERY_SENDERS), default=None, help="Render the dashboard and deliver it as a photo to a channel"
     )
+    parser.add_argument("--dashboard", metavar="PATH", default=None, help="Write the visual dashboard PNG to PATH without delivering it")
     return parser
 
 
@@ -91,6 +94,15 @@ def collect_report_data(backend, property_name: str, days: int, no_gsc: bool = F
     return data
 
 
+def _deliver_dashboard(data: Dict[str, Any], property_name: str, days: int) -> None:
+    """Render the visual dashboard to a temp PNG and send it to Telegram as a
+    photo with a concise caption — replaces the old text-wall delivery."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        image_path = charts.compose_dashboard(data, property_name, days, os.path.join(tmp_dir, "dashboard.png"))
+        caption = charts.compose_caption(data, property_name, days)
+        delivery.send_photo(image_path, caption)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
@@ -104,9 +116,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     backend = _make_backend(args.backend, prop)
     data = collect_report_data(backend, args.property, args.days, no_gsc=args.no_gsc)
 
+    if args.dashboard:
+        charts.compose_dashboard(data, args.property, args.days, args.dashboard)
+        print(f"Dashboard written to {args.dashboard}.", file=sys.stderr)
+
     if args.deliver:
         try:
-            delivery.deliver(args.deliver, report.render(data, "telegram"))
+            _deliver_dashboard(data, args.property, args.days)
         except delivery.DeliveryError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1

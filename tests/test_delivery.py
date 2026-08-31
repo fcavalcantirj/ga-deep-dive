@@ -116,3 +116,86 @@ def test_deliver_dispatches_to_telegram_sender(monkeypatch):
 def test_deliver_unknown_channel_raises_delivery_error():
     with pytest.raises(delivery.DeliveryError, match="unknown delivery channel"):
         delivery.deliver("carrier-pigeon", "hi there")
+
+
+# ---- send_photo: missing credentials --------------------------------------------------
+
+
+def test_send_photo_missing_both_env_vars_raises(tmp_path, monkeypatch):
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    monkeypatch.delenv("TELEGRAM_HOME_CHANNEL", raising=False)
+    image_path = tmp_path / "dashboard.png"
+    image_path.write_bytes(b"not-really-a-png")
+    with pytest.raises(delivery.DeliveryError, match="TELEGRAM_BOT_TOKEN"):
+        delivery.send_photo(str(image_path), "caption")
+
+
+def test_send_photo_missing_chat_id_and_home_channel_raises(tmp_path, monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "bot-token")
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    monkeypatch.delenv("TELEGRAM_HOME_CHANNEL", raising=False)
+    image_path = tmp_path / "dashboard.png"
+    image_path.write_bytes(b"not-really-a-png")
+    with pytest.raises(delivery.DeliveryError):
+        delivery.send_photo(str(image_path), "caption")
+
+
+def test_send_photo_falls_back_to_home_channel_when_chat_id_unset(tmp_path, monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "bot-token")
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    monkeypatch.setenv("TELEGRAM_HOME_CHANNEL", "home-channel-99")
+    image_path = tmp_path / "dashboard.png"
+    image_path.write_bytes(b"not-really-a-png")
+    calls = []
+    delivery.send_photo(str(image_path), "caption", opener=_recording_opener(calls))
+    assert len(calls) == 1
+    body = calls[0].data.decode("latin-1")
+    assert "home-channel-99" in body
+
+
+# ---- send_photo: happy path -------------------------------------------------------------
+
+
+def test_send_photo_happy_path_posts_multipart_to_send_photo(tmp_path, monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "bot-token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "12345")
+    image_bytes = b"\x89PNG\r\n\x1a\nfake-png-bytes"
+    image_path = tmp_path / "dashboard.png"
+    image_path.write_bytes(image_bytes)
+
+    calls = []
+    delivery.send_photo(str(image_path), "the caption text", opener=_recording_opener(calls))
+
+    assert len(calls) == 1
+    request = calls[0]
+    assert request.full_url == "https://api.telegram.org/botbot-token/sendPhoto"
+    assert request.headers.get("Content-type", "").startswith("multipart/form-data; boundary=")
+
+    body = request.data
+    assert b'name="chat_id"' in body
+    assert b"12345" in body
+    assert b'name="caption"' in body
+    assert b"the caption text" in body
+    assert b'name="photo"; filename="dashboard.png"' in body
+    assert image_bytes in body
+
+
+def test_send_photo_api_rejection_raises_delivery_error(tmp_path, monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "bot-token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "12345")
+    image_path = tmp_path / "dashboard.png"
+    image_path.write_bytes(b"fake-png-bytes")
+    calls = []
+    opener = _recording_opener(calls, body={"ok": False, "description": "chat not found"})
+    with pytest.raises(delivery.DeliveryError, match="chat not found"):
+        delivery.send_photo(str(image_path), "caption", opener=opener)
+
+
+def test_send_photo_network_error_raises_delivery_error(tmp_path, monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "bot-token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "12345")
+    image_path = tmp_path / "dashboard.png"
+    image_path.write_bytes(b"fake-png-bytes")
+    with pytest.raises(delivery.DeliveryError, match="Telegram sendPhoto request failed"):
+        delivery.send_photo(str(image_path), "caption", opener=_erroring_opener)

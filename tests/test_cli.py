@@ -1,4 +1,5 @@
 import json
+import os
 
 import pytest
 
@@ -151,32 +152,79 @@ def test_build_arg_parser_defaults():
     assert args.no_gsc is False
     assert args.no_telegram is False
     assert args.deliver is None
+    assert args.dashboard is None
 
 
 # ---- --deliver telegram ------------------------------------------------------------
 
 
-def test_main_deliver_telegram_happy_path(monkeypatch, capsys):
+def test_main_deliver_telegram_happy_path_sends_dashboard_photo(monkeypatch, capsys):
     _install_fake_backend(monkeypatch)
-    delivered = []
-    monkeypatch.setitem(delivery.DELIVERY_SENDERS, "telegram", lambda text: delivered.append(text))
+    sent = []
+    monkeypatch.setattr(delivery, "send_photo", lambda image_path, caption, **kw: sent.append((image_path, caption)))
     exit_code = cli.main(["esp-atlas", "--deliver", "telegram", "--json"])
     assert exit_code == 0
-    assert len(delivered) == 1
-    assert "GA4 DEEP DIVE v3" in delivered[0]
+    assert len(sent) == 1
+    image_path, caption = sent[0]
+    assert image_path.endswith(".png")
+    assert "ESP-ATLAS" in caption
+    assert len(caption) < 1024
     captured = capsys.readouterr()
     assert "Delivered to telegram." in captured.err
+
+
+def test_main_deliver_telegram_never_sends_the_old_text_wall(monkeypatch):
+    _install_fake_backend(monkeypatch)
+    sent = []
+    monkeypatch.setattr(delivery, "send_photo", lambda image_path, caption, **kw: sent.append((image_path, caption)))
+    cli.main(["esp-atlas", "--deliver", "telegram", "--json"])
+    assert len(sent) == 1
+    _, caption = sent[0]
+    assert "GA4 DEEP DIVE v3" not in caption  # the old text-wall is not what gets delivered
 
 
 def test_main_deliver_telegram_missing_env_exits_nonzero(monkeypatch, capsys):
     _install_fake_backend(monkeypatch)
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    monkeypatch.delenv("TELEGRAM_HOME_CHANNEL", raising=False)
     exit_code = cli.main(["esp-atlas", "--deliver", "telegram", "--json"])
     assert exit_code == 1
     captured = capsys.readouterr()
     assert "TELEGRAM_BOT_TOKEN" in captured.err
     assert captured.out == ""  # never printed the report if delivery failed
+
+
+# ---- --dashboard ----------------------------------------------------------------------
+
+
+def test_main_dashboard_writes_png_without_delivering(monkeypatch, capsys, tmp_path):
+    _install_fake_backend(monkeypatch)
+    sent = []
+    monkeypatch.setattr(delivery, "send_photo", lambda *a, **kw: sent.append((a, kw)))
+    output_path = str(tmp_path / "out.png")
+
+    exit_code = cli.main(["esp-atlas", "--dashboard", output_path, "--json"])
+
+    assert exit_code == 0
+    assert os.path.exists(output_path)
+    assert os.path.getsize(output_path) > 0
+    assert sent == []  # --dashboard alone never delivers
+    captured = capsys.readouterr()
+    assert f"Dashboard written to {output_path}." in captured.err
+
+
+def test_main_dashboard_and_deliver_together(monkeypatch, tmp_path):
+    _install_fake_backend(monkeypatch)
+    sent = []
+    monkeypatch.setattr(delivery, "send_photo", lambda image_path, caption, **kw: sent.append((image_path, caption)))
+    output_path = str(tmp_path / "out.png")
+
+    exit_code = cli.main(["esp-atlas", "--dashboard", output_path, "--deliver", "telegram", "--json"])
+
+    assert exit_code == 0
+    assert os.path.exists(output_path)
+    assert len(sent) == 1
 
 
 def test_build_arg_parser_deliver_choices():

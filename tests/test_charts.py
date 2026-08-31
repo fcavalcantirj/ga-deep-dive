@@ -1,0 +1,330 @@
+import json
+
+import pytest
+
+from gadeepdive import charts
+
+FULL_DATA = {
+    "property": "repo-atlas",
+    "days": 7,
+    "generated_at": "2026-08-31 12:00 UTC",
+    "executive": {
+        "current": {"sessions": 1570, "activeUsers": 960, "engagementRate": 0.512, "screenPageViews": 3770},
+        "previous": {"sessions": 980, "activeUsers": 700, "engagementRate": 0.40, "screenPageViews": 2500},
+    },
+    "health": {
+        "scores": {
+            "Growth": 82,
+            "Content": 55,
+            "Engagement": 51,
+            "Mobile": 38,
+            "Geo Diversity": 70,
+            "Retention": None,
+            "Traffic Diversity": 90,
+        },
+        "overall": 64,
+        "grade": "B",
+    },
+    "acquisition": {
+        "channels": [
+            {"name": "Organic Search", "sessions": 600},
+            {"name": "Direct", "sessions": 400},
+            {"name": "Referral", "sessions": 250},
+            {"name": "Social", "sessions": 150},
+            {"name": "Email", "sessions": 90},
+            {"name": "Paid Search", "sessions": 50},
+            {"name": "Display", "sessions": 20},
+            {"name": "Other", "sessions": 10},
+        ]
+    },
+    "geography": {
+        "countries": [
+            {"name": "United States", "sessions": 700},
+            {"name": "Brazil", "sessions": 300},
+            {"name": "Germany", "sessions": 200},
+            {"name": "India", "sessions": 150},
+            {"name": "United Kingdom", "sessions": 100},
+            {"name": "Canada", "sessions": 60},
+            {"name": "France", "sessions": 40},
+            {"name": "Japan", "sessions": 20},
+        ]
+    },
+    "acquisition_over_time": {
+        "daily": [
+            {"date": "08-25", "users": 100},
+            {"date": "08-26", "users": 140},
+            {"date": "08-27", "users": 90},
+            {"date": "08-28", "users": 200},
+            {"date": "08-29", "users": 160},
+            {"date": "08-30", "users": 180},
+            {"date": "08-31", "users": 220},
+        ]
+    },
+    "hourly_performance": {
+        "hours": [{"hour": h, "sessions": (h * 7) % 53 + 5, "engagement_rate": 0.3 + (h % 5) * 0.05} for h in range(24)],
+        "best_hour": 14,
+    },
+    "events": {
+        "events": [
+            {"name": "page_view", "count": 5000},
+            {"name": "example_click", "count": 1200},
+            {"name": "wizard_submit", "count": 400},
+            {"name": "wizard_results", "count": 250},
+        ]
+    },
+    "gsc": {
+        "available": True,
+        "striking_distance": [
+            {"query": "how to deploy a repo to production", "impressions": 4000, "position": 9.2},
+            {"query": "ga4 deep dive skill setup guide", "impressions": 3000, "position": 12.1},
+            {"query": "repo atlas onboarding checklist", "impressions": 1500, "position": 15.4},
+        ],
+    },
+    "insights": [
+        {"icon": "🟢", "message": "Sessions up 60% WoW", "action": "Double down on Organic Search"},
+        {"icon": "🚨", "message": "/promo/expired-campaign has a 100% bounce rate", "action": "Fix landing page"},
+        {"icon": "🔴", "message": "Low stickiness: DAU/MAU is only 6.0%", "action": "Run retention campaigns"},
+    ],
+}
+
+
+def _sample_data():
+    return json.loads(json.dumps(FULL_DATA))
+
+
+def _png_dimensions(path):
+    """Read width/height straight out of the PNG IHDR chunk — avoids pulling
+    in Pillow just for a test assertion."""
+    with open(path, "rb") as handle:
+        header = handle.read(24)
+    width = int.from_bytes(header[16:20], "big")
+    height = int.from_bytes(header[20:24], "big")
+    return width, height
+
+
+# ---- compose_dashboard: happy path ------------------------------------------------
+
+
+def test_compose_dashboard_writes_non_empty_png_of_expected_size(tmp_path):
+    output_path = str(tmp_path / "dashboard.png")
+    result = charts.compose_dashboard(_sample_data(), "repo-atlas", 7, output_path)
+    assert result == output_path
+
+    import os
+
+    assert os.path.getsize(output_path) > 0
+    assert _png_dimensions(output_path) == (charts.FIG_WIDTH_PX, charts.FIG_HEIGHT_PX)
+
+
+def test_compose_dashboard_returns_the_output_path(tmp_path):
+    output_path = str(tmp_path / "nested" / "out.png")
+    import os
+
+    os.makedirs(os.path.dirname(output_path))
+    assert charts.compose_dashboard(_sample_data(), "repo-atlas", 7, output_path) == output_path
+
+
+# ---- compose_dashboard: graceful degradation --------------------------------------
+
+
+def test_compose_dashboard_handles_completely_empty_sections_without_crashing(tmp_path):
+    output_path = str(tmp_path / "empty.png")
+    empty_data = {
+        "property": "repo-atlas",
+        "days": 7,
+        "generated_at": "2026-08-31 12:00 UTC",
+        "executive": {"current": {}, "previous": {}},
+        "health": {"scores": {}, "overall": None, "grade": "N/A"},
+        "acquisition": {"channels": []},
+        "geography": {"countries": []},
+        "acquisition_over_time": {"daily": []},
+        "hourly_performance": {"hours": [], "best_hour": None},
+        "events": {"events": []},
+        "gsc": {"available": False},
+        "insights": [],
+    }
+    result = charts.compose_dashboard(empty_data, "repo-atlas", 7, output_path)
+    assert result == output_path
+
+    import os
+
+    assert os.path.getsize(output_path) > 0
+    assert _png_dimensions(output_path) == (charts.FIG_WIDTH_PX, charts.FIG_HEIGHT_PX)
+
+
+def test_compose_dashboard_handles_missing_keys_entirely_without_crashing(tmp_path):
+    output_path = str(tmp_path / "sparse.png")
+    sparse_data = {"property": "repo-atlas", "days": 7, "generated_at": "2026-08-31 12:00 UTC"}
+    result = charts.compose_dashboard(sparse_data, "repo-atlas", 7, output_path)
+    assert result == output_path
+
+
+def test_compose_dashboard_funnel_handles_partial_event_coverage(tmp_path):
+    output_path = str(tmp_path / "partial_funnel.png")
+    data = _sample_data()
+    data["events"] = {"events": [{"name": "page_view", "count": 500}]}
+    charts.compose_dashboard(data, "repo-atlas", 7, output_path)
+
+
+def test_compose_dashboard_funnel_empty_state_when_no_matching_events(tmp_path):
+    output_path = str(tmp_path / "no_funnel.png")
+    data = _sample_data()
+    data["events"] = {"events": [{"name": "some_other_event", "count": 500}]}
+    charts.compose_dashboard(data, "repo-atlas", 7, output_path)
+
+
+def test_compose_dashboard_kpi_tiles_handle_new_metric_with_no_previous(tmp_path):
+    output_path = str(tmp_path / "new_kpi.png")
+    data = _sample_data()
+    del data["executive"]["previous"]["sessions"]
+    charts.compose_dashboard(data, "repo-atlas", 7, output_path)
+
+
+# ---- compose_dashboard: GSC panel skip vs empty-state -----------------------------
+
+
+def test_compose_dashboard_skips_gsc_panel_when_gsc_unavailable(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(charts, "_draw_gsc_striking_distance", lambda *a, **k: calls.append(a))
+    data = _sample_data()
+    data["gsc"] = {"available": False}
+    charts.compose_dashboard(data, "repo-atlas", 7, str(tmp_path / "no_gsc.png"))
+    assert calls == []
+
+
+def test_compose_dashboard_skips_gsc_panel_when_gsc_key_missing(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(charts, "_draw_gsc_striking_distance", lambda *a, **k: calls.append(a))
+    data = _sample_data()
+    del data["gsc"]
+    charts.compose_dashboard(data, "repo-atlas", 7, str(tmp_path / "no_gsc2.png"))
+    assert calls == []
+
+
+def test_compose_dashboard_renders_gsc_panel_when_available_but_striking_distance_empty(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(charts, "_draw_gsc_striking_distance", lambda *a, **k: calls.append(a))
+    data = _sample_data()
+    data["gsc"] = {"available": True, "striking_distance": []}
+    charts.compose_dashboard(data, "repo-atlas", 7, str(tmp_path / "gsc_empty.png"))
+    assert len(calls) == 1
+
+
+def test_compose_dashboard_renders_gsc_panel_when_available_with_rows(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(charts, "_draw_gsc_striking_distance", lambda *a, **k: calls.append(a))
+    charts.compose_dashboard(_sample_data(), "repo-atlas", 7, str(tmp_path / "gsc_rows.png"))
+    assert len(calls) == 1
+
+
+def test_compose_dashboard_gsc_available_but_no_striking_distance_rows_renders_empty_state(tmp_path):
+    data = _sample_data()
+    data["gsc"] = {"available": True, "striking_distance": []}
+    output_path = str(tmp_path / "gsc_empty_state.png")
+    charts.compose_dashboard(data, "repo-atlas", 7, output_path)
+    import os
+
+    assert os.path.getsize(output_path) > 0
+
+
+# ---- large-value formatting -----------------------------------------------------------
+
+
+def test_compose_dashboard_handles_million_scale_and_fractional_metrics(tmp_path):
+    data = _sample_data()
+    data["executive"]["current"]["sessions"] = 2_500_000
+    data["executive"]["current"]["engagementRate"] = 0.5123
+    data["executive"]["previous"]["sessions"] = 1_000_000
+    data["acquisition"]["channels"][0]["sessions"] = 45.7  # exercises the fractional-value branch
+    output_path = str(tmp_path / "million_scale.png")
+    charts.compose_dashboard(data, "repo-atlas", 7, output_path)
+    caption = charts.compose_caption(data, "repo-atlas", 7)
+    assert "2.5M" in caption
+
+
+# ---- label truncation ---------------------------------------------------------------
+
+
+def test_truncate_label_leaves_short_labels_untouched():
+    assert charts._truncate_label("Organic Search") == "Organic Search"
+
+
+def test_truncate_label_ellipsizes_long_labels():
+    result = charts._truncate_label("how to deploy a repo to production", max_len=22)
+    assert len(result) <= 22
+    assert result.endswith("…")
+    assert result.startswith("how to deploy a repo")
+
+
+# ---- compose_caption ----------------------------------------------------------------
+
+
+def test_compose_caption_contains_property_and_period():
+    caption = charts.compose_caption(_sample_data(), "repo-atlas", 7)
+    assert "REPO-ATLAS" in caption
+    assert "Last 7 days" in caption
+
+
+def test_compose_caption_contains_all_four_headline_kpis_with_wow_arrows():
+    caption = charts.compose_caption(_sample_data(), "repo-atlas", 7)
+    for label in ("Sessions", "Users", "Engagement Rate", "Page Views"):
+        assert label in caption
+    assert "▲" in caption  # all four KPIs grew WoW in the fixture
+
+
+def test_compose_caption_contains_top_three_insights():
+    caption = charts.compose_caption(_sample_data(), "repo-atlas", 7)
+    assert "Sessions up 60% WoW" in caption
+    assert "100% bounce rate" in caption
+    assert "Low stickiness" in caption
+
+
+def test_compose_caption_caps_insights_at_three():
+    data = _sample_data()
+    data["insights"] = [{"icon": "🟢", "message": f"insight number {i}", "action": "do something"} for i in range(6)]
+    caption = charts.compose_caption(data, "repo-atlas", 7)
+    assert caption.count("insight number") == 3
+
+
+def test_compose_caption_contains_top_striking_distance_query():
+    caption = charts.compose_caption(_sample_data(), "repo-atlas", 7)
+    assert "how to deploy a repo to production" in caption
+    assert "pos 9.2" in caption
+
+
+def test_compose_caption_skips_striking_distance_line_when_gsc_unavailable():
+    data = _sample_data()
+    data["gsc"] = {"available": False}
+    caption = charts.compose_caption(data, "repo-atlas", 7)
+    assert "striking-distance query" not in caption
+
+
+def test_compose_caption_handles_new_metric_with_no_previous():
+    data = _sample_data()
+    del data["executive"]["previous"]["sessions"]
+    caption = charts.compose_caption(data, "repo-atlas", 7)
+    assert "NEW" in caption
+
+
+def test_compose_caption_is_always_under_the_telegram_limit():
+    caption = charts.compose_caption(_sample_data(), "repo-atlas", 7)
+    assert len(caption) < 1024
+
+
+def test_compose_caption_truncates_when_insights_are_pathologically_long():
+    data = _sample_data()
+    data["insights"] = [
+        {"icon": "🟢", "message": "x" * 500, "action": "y"},
+        {"icon": "🟢", "message": "z" * 500, "action": "w"},
+        {"icon": "🟢", "message": "q" * 500, "action": "r"},
+    ]
+    caption = charts.compose_caption(data, "repo-atlas", 7)
+    assert len(caption) <= 1024
+
+
+def test_compose_caption_handles_empty_data_without_crashing():
+    caption = charts.compose_caption(
+        {"executive": {"current": {}, "previous": {}}, "insights": [], "gsc": None}, "repo-atlas", 7
+    )
+    assert "REPO-ATLAS" in caption
+    assert len(caption) < 1024

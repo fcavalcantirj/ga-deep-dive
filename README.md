@@ -16,7 +16,7 @@ where new work lands.
 pip install -e .   # registers the `deep-dive` console script (see pyproject.toml)
 
 deep-dive <property> [--days N] [--json] [--no-gsc] [--no-telegram] \
-                      [--deliver telegram] [--backend composio|native]
+                      [--deliver telegram] [--dashboard PATH] [--backend composio|native]
 ```
 
 | Flag | Default | Effect |
@@ -25,8 +25,14 @@ deep-dive <property> [--days N] [--json] [--no-gsc] [--no-telegram] \
 | `--json` | off | Machine-readable output, no ANSI art |
 | `--no-gsc` | off | Skip the Search Console section (included by default) |
 | `--no-telegram` | off | Skip the telegram-condensed variant printed after the full report |
-| `--deliver telegram` | off | Also send the telegram-variant report to Telegram (needs `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` env vars) |
+| `--dashboard PATH` | off | Render the visual dashboard PNG to `PATH` without sending it anywhere |
+| `--deliver telegram` | off | Render the visual dashboard and send it to Telegram as a photo, with a short caption (needs `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`/`TELEGRAM_HOME_CHANNEL` env vars) |
 | `--backend composio\|native` | `composio` | Data source — Composio OAuth (default, no key file) or the native SDK |
+
+`--deliver telegram` sends a single dark-themed portrait dashboard image (KPI
+tiles, health scores, acquisition, geography, hourly performance, event
+funnel, GSC striking distance, ...) built by `gadeepdive/charts.py` — the old
+wall-of-text "TELEGRAM VARIANT" is no longer what gets delivered to mobile.
 
 **Defaults are all-in; flags only subtract.** GSC and the telegram variant ship
 unless explicitly suppressed.
