@@ -114,7 +114,10 @@ def test_main_passes_days_through_to_backend_calls(monkeypatch, capsys):
     fake = _install_fake_backend(monkeypatch)
     cli.main(["esp-atlas", "--days", "30", "--json"])
     capsys.readouterr()
-    days_seen = {call[3] for call in fake.calls if call[0] == "run_report"}
+    # user_activity is intentionally exempt: it's a point-in-time snapshot of
+    # the last complete day, never a function of the report's --days period.
+    period_calls = [call for call in fake.calls if call[0] == "run_report" and "date_ranges" not in call[4]]
+    days_seen = {call[3] for call in period_calls}
     assert days_seen == {30}
 
 

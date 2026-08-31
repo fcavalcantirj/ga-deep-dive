@@ -43,7 +43,7 @@ def _utc_now_str() -> str:
 def collect_report_data(backend, property_name: str, days: int) -> Dict[str, Any]:
     realtime = fetch.realtime_active_users(backend)
     executive = fetch.executive_summary(backend, days)
-    activity = fetch.user_activity(backend, days)
+    activity = fetch.user_activity(backend)
     dashboard = health.compute_dashboard(executive, activity)
 
     return {
