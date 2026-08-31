@@ -17,6 +17,9 @@ from typing import Any, Dict, List, Optional  # noqa: E402
 
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib import gridspec  # noqa: E402
+from matplotlib.patches import FancyBboxPatch, Rectangle  # noqa: E402
+
+from . import northstar  # noqa: E402
 
 # ---- validated dark palette (do not invent colors) --------------------------
 
@@ -56,6 +59,13 @@ FUNNEL_STEPS = ["page_view", "example_click", "wizard_submit", "wizard_results"]
 TOP_N_BARS = 8
 CAPTION_LIMIT = 1024
 LABEL_MAX_CHARS = 22
+GSC_LABEL_MAX_CHARS = 34
+
+ROUNDED_BAR_RADIUS_PX = 5
+MAX_INSIGHT_CARDS = 5
+
+ICON_SEVERITY = {"🔴": "critical", "🚨": "critical", "🟢": "good"}
+SEVERITY_COLOR = {"critical": STATUS_CRITICAL, "warning": STATUS_WARNING, "good": STATUS_GOOD}
 
 
 # ---- small pure formatting helpers -------------------------------------------
@@ -97,6 +107,69 @@ def _health_color(score: Optional[int]) -> str:
         if score >= threshold:
             return color
     return STATUS_CRITICAL
+
+
+def _severity_for_icon(icon: str) -> str:
+    return ICON_SEVERITY.get(icon, "warning")
+
+
+def _severity_color(icon: str) -> str:
+    return SEVERITY_COLOR[_severity_for_icon(icon)]
+
+
+def _top_insight_cards(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Reuse the exact insights the report/caption already compute, capped to
+    `MAX_INSIGHT_CARDS`, each annotated with its severity color."""
+    insights = (data or {}).get("insights") or []
+    return [dict(insight, severity=_severity_for_icon(insight.get("icon", "")),
+                 color=_severity_color(insight.get("icon", ""))) for insight in insights[:MAX_INSIGHT_CARDS]]
+
+
+# ---- rounded bars ---------------------------------------------------------------
+
+
+def _pixels_per_data_unit(ax) -> tuple:
+    """(x, y) pixels-per-1-data-unit for `ax`, used to size a fixed-pixel
+    corner radius regardless of each panel's own data scale."""
+    p0 = ax.transData.transform((0, 0))
+    px = ax.transData.transform((1, 0))
+    py = ax.transData.transform((0, 1))
+    x_px_per_unit = abs(px[0] - p0[0]) or 1.0
+    y_px_per_unit = abs(py[1] - p0[1]) or 1.0
+    return x_px_per_unit, y_px_per_unit
+
+
+def _rounded_bar(ax, x0: float, y0: float, width: float, height: float, color: str,
+                  radius_px: float = ROUNDED_BAR_RADIUS_PX, zorder: int = 3) -> FancyBboxPatch:
+    """Draw a single bar/card as a `FancyBboxPatch` with a rounded-corner
+    radius that reads as a fixed pixel size no matter the axis' data scale
+    (via `mutation_aspect`, since a bar's x/y units are rarely 1:1 in pixels).
+    """
+    x_px_per_unit, y_px_per_unit = _pixels_per_data_unit(ax)
+    radius_x = radius_px / x_px_per_unit
+    radius_x = min(radius_x, abs(width) / 2) if width else 0.0
+    aspect = x_px_per_unit / y_px_per_unit
+
+    patch = FancyBboxPatch(
+        (x0, y0), width, height,
+        boxstyle=f"round,pad=0,rounding_size={radius_x}",
+        mutation_aspect=aspect, mutation_scale=1,
+        linewidth=0, facecolor=color, zorder=zorder,
+    )
+    ax.add_patch(patch)
+    return patch
+
+
+def _rounded_hbars(ax, y_positions: List[float], values: List[float], height: float, colors: List[str],
+                    zorder: int = 3) -> None:
+    for y, value, color in zip(y_positions, values, colors):
+        _rounded_bar(ax, 0, y - height / 2, value, height, color, zorder=zorder)
+
+
+def _rounded_vbars(ax, x_positions: List[float], values: List[float], width: float, colors: List[str],
+                    zorder: int = 3) -> None:
+    for x, value, color in zip(x_positions, values, colors):
+        _rounded_bar(ax, x - width / 2, 0, width, value, color, zorder=zorder)
 
 
 # ---- axis/panel scaffolding ---------------------------------------------------
@@ -203,11 +276,12 @@ def _draw_health_scores(fig, cell, health: Dict[str, Any]) -> None:
     colors = [_health_color(score) for _, score in items]
     y_pos = list(range(len(labels)))
 
-    ax.barh(y_pos, values, color=colors, height=0.55, zorder=3)
+    ax.set_xlim(0, 100)
+    ax.set_ylim(-0.5, len(labels) - 0.5)
+    _rounded_hbars(ax, y_pos, values, height=0.55, colors=colors)
     ax.set_yticks(y_pos)
     ax.set_yticklabels(labels, color=TEXT_PRIMARY, fontsize=9)
     ax.invert_yaxis()
-    ax.set_xlim(0, 100)
     ax.set_xticks([])
     ax.grid(axis="x", color=GRID_MUTED, linewidth=0.6, zorder=0)
 
@@ -226,20 +300,20 @@ def _draw_health_scores(fig, cell, health: Dict[str, Any]) -> None:
 
 
 def _draw_horizontal_bars(ax, rows: List[Dict[str, Any]], label_key: str, value_key: str, colors: List[str],
-                            annotate_fn=None) -> None:
-    labels = [_truncate_label(row.get(label_key, "")) for row in rows]
+                            annotate_fn=None, label_max_chars: int = LABEL_MAX_CHARS) -> None:
+    labels = [_truncate_label(row.get(label_key, ""), max_len=label_max_chars) for row in rows]
     values = [float(row.get(value_key, 0) or 0) for row in rows]
     y_pos = list(range(len(labels)))
     bar_colors = [colors[i % len(colors)] for i in range(len(labels))]
 
-    ax.barh(y_pos, values, color=bar_colors, height=0.6, zorder=3)
+    max_value = max(values) if values else 0
+    ax.set_xlim(0, max_value * 1.3 if max_value else 1)
+    ax.set_ylim(-0.5, len(labels) - 0.5 if labels else 0.5)
+    _rounded_hbars(ax, y_pos, values, height=0.6, colors=bar_colors)
     ax.set_yticks(y_pos)
     ax.set_yticklabels(labels, color=TEXT_PRIMARY, fontsize=9)
     ax.invert_yaxis()
     ax.set_xticks([])
-
-    max_value = max(values) if values else 0
-    ax.set_xlim(0, max_value * 1.3 if max_value else 1)
 
     for y, (row, value) in zip(y_pos, zip(rows, values)):
         text = annotate_fn(row, value) if annotate_fn else _fmt_num(value)
@@ -248,12 +322,13 @@ def _draw_horizontal_bars(ax, rows: List[Dict[str, Any]], label_key: str, value_
 
 
 def _draw_horizontal_bar_panel(fig, cell, title: str, rows: List[Dict[str, Any]], label_key: str, value_key: str,
-                                 colors: List[str], empty_message: str, annotate_fn=None) -> None:
+                                 colors: List[str], empty_message: str, annotate_fn=None,
+                                 label_max_chars: int = LABEL_MAX_CHARS) -> None:
     ax = _new_panel_axis(fig, cell, title)
     if not rows:
         _empty_state(ax, empty_message)
         return
-    _draw_horizontal_bars(ax, rows, label_key, value_key, colors, annotate_fn=annotate_fn)
+    _draw_horizontal_bars(ax, rows, label_key, value_key, colors, annotate_fn=annotate_fn, label_max_chars=label_max_chars)
 
 
 # ---- panel: daily users (area + line) -------------------------------------------
@@ -304,7 +379,10 @@ def _draw_hourly_performance(fig, cell, hourly: Dict[str, Any]) -> None:
     values = [float(h.get("sessions", 0) or 0) for h in hours_sorted]
     colors = [STATUS_GOOD if h.get("hour") == best_hour else CATEGORICAL[0] for h in hours_sorted]
 
-    ax.bar(x, values, color=colors, width=0.7, zorder=3)
+    max_value = max(values) if values else 1
+    ax.set_xlim(min(x) - 0.5, max(x) + 0.5)
+    ax.set_ylim(0, max_value * 1.15 if max_value else 1)
+    _rounded_vbars(ax, x, values, width=0.7, colors=colors)
     ax.set_xticks(x[::3])
     ax.set_xticklabels([str(v) for v in x[::3]], color=TEXT_SECONDARY, fontsize=7.5)
     ax.set_yticks([])
@@ -330,13 +408,14 @@ def _draw_funnel(fig, cell, events_data: Dict[str, Any]) -> None:
     colors = list(reversed(SEQUENTIAL_BLUES))
     baseline = values[0] or 1
 
-    ax.barh(y_pos, values, color=colors, height=0.6, zorder=3)
+    max_value = max(values) if values else 1
+    ax.set_xlim(0, max_value * 1.35)
+    ax.set_ylim(-0.5, len(rows) - 0.5)
+    _rounded_hbars(ax, y_pos, values, height=0.6, colors=colors)
     ax.set_yticks(y_pos)
     ax.set_yticklabels(labels, color=TEXT_PRIMARY, fontsize=9)
     ax.invert_yaxis()
     ax.set_xticks([])
-    max_value = max(values) if values else 1
-    ax.set_xlim(0, max_value * 1.35)
 
     for y, value in zip(y_pos, values):
         drop_pct = value / baseline * 100 if baseline else 0
@@ -361,10 +440,107 @@ def _draw_gsc_striking_distance(fig, cell, gsc: Dict[str, Any]) -> None:
         position = float(row.get("position", 0) or 0)
         return f"{_fmt_num(value)} imp · pos {position:.1f}"
 
-    _draw_horizontal_bars(ax, rows, "query", "impressions", CATEGORICAL, annotate_fn=_annotate)
+    _draw_horizontal_bars(ax, rows, "query", "impressions", CATEGORICAL, annotate_fn=_annotate,
+                           label_max_chars=GSC_LABEL_MAX_CHARS)
+
+
+# ---- panel: actionable insights (callout cards) ----------------------------------
+
+CARD_GAP_FRAC = 0.14
+
+
+def _draw_insights_panel(fig, cell, data: Dict[str, Any]) -> None:
+    ax = _new_panel_axis(fig, cell, "Actionable Insights")
+    cards = _top_insight_cards(data)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    if not cards:
+        _empty_state(ax, "No actionable insights")
+        return
+
+    n = len(cards)
+    slot_height = 1.0 / n
+    gap = slot_height * CARD_GAP_FRAC
+    card_height = slot_height - gap
+
+    for i, card in enumerate(cards):
+        y0 = 1.0 - (i + 1) * slot_height + gap / 2
+        _rounded_bar(ax, 0.01, y0, 0.98, card_height, PANEL_BG, radius_px=8, zorder=2)
+        stripe = Rectangle((0.01, y0), 0.012, card_height, linewidth=0, facecolor=card["color"], zorder=3)
+        ax.add_patch(stripe)
+
+        # A plain dot, not the insight's own emoji: matplotlib's default sans
+        # font has no color-emoji glyphs, so printing 🔴/🚨/🟢 as text renders
+        # as missing-glyph tofu boxes in the rasterized PNG.
+        icon_y = y0 + card_height * 0.62
+        ax.scatter([0.045], [icon_y], s=50, color=card["color"], zorder=4)
+        message = card.get("message", "")
+        ax.text(0.075, icon_y, message, ha="left", va="center",
+                 color=TEXT_PRIMARY, fontsize=9.5, fontweight="bold")
+        action = card.get("action")
+        if action:
+            ax.text(0.075, y0 + card_height * 0.25, f"→ {action}", ha="left", va="center",
+                     color=TEXT_SECONDARY, fontsize=8.5)
+
+
+# ---- panel: north-star pacing (optional, registry-driven goal) -------------------
+
+
+def _draw_pacing_panel(fig, cell, pacing: Dict[str, Any]) -> None:
+    ax = _new_panel_axis(fig, cell, "North-Star Pacing")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 1)
+
+    percent = max(0.0, min(pacing["percent"], 100.0))
+    _rounded_bar(ax, 0, 0.55, 100, 0.28, GRID_MUTED, radius_px=6, zorder=2)
+    if percent > 0:
+        _rounded_bar(ax, 0, 0.55, percent, 0.28, SEQUENTIAL_BLUES[2], radius_px=6, zorder=3)
+
+    ax.text(0.0, 1.0, pacing["label"], transform=ax.transAxes, ha="left", va="bottom",
+             color=TEXT_PRIMARY, fontsize=11, fontweight="bold")
+    ax.text(1.0, 1.0, f"{pacing['percent']:.1f}% of target", transform=ax.transAxes, ha="right", va="bottom",
+             color=TEXT_SECONDARY, fontsize=9.5)
+
+    ax.text(0.0, 0.30, f"{_fmt_num(pacing['current_total'])} of {_fmt_num(pacing['target'])}", transform=ax.transAxes,
+             ha="left", va="center", color=TEXT_PRIMARY, fontsize=10)
+    ax.text(0.0, 0.08, f"{pacing['days_left']} days left", transform=ax.transAxes, ha="left", va="center",
+             color=TEXT_SECONDARY, fontsize=9)
+
+    ahead = pacing["ahead"]
+    status_color = STATUS_GOOD if ahead else STATUS_CRITICAL
+    status_text = "AHEAD OF PACE" if ahead else "BEHIND PACE"
+    ax.text(
+        1.0, 0.08,
+        f"{status_text} · need {_fmt_num(pacing['required_rate'])}/day vs {_fmt_num(pacing['current_rate'])}/day",
+        transform=ax.transAxes, ha="right", va="center", color=status_color, fontsize=9, fontweight="bold",
+    )
 
 
 # ---- composition ------------------------------------------------------------------
+
+BASE_PANEL_SPECS = [
+    ("header", 0.55),
+    ("kpi", 1.05),
+    ("health", 1.75),
+    ("acquisition", 1.75),
+    ("daily_users", 1.55),
+    ("hourly", 1.4),
+    ("geography", 1.75),
+    ("funnel", 1.2),
+]
+INSIGHTS_PANEL_RATIO = 1.5
+GSC_PANEL_RATIO = 1.35
+PACING_PANEL_RATIO = 1.1
+
+# Calibrated so the baseline layout (no GSC, no north-star goal) renders at
+# exactly FIG_HEIGHT_PX, matching the original fixed-height design; GSC and
+# the optional pacing panel each grow the canvas beyond that baseline.
+_BASELINE_RATIO_SUM = sum(ratio for _, ratio in BASE_PANEL_SPECS) + INSIGHTS_PANEL_RATIO
+PX_PER_RATIO_UNIT = FIG_HEIGHT_PX / _BASELINE_RATIO_SUM
 
 
 def compose_dashboard(data: Dict[str, Any], property_name: str, period: Any, output_path: str) -> str:
@@ -374,25 +550,23 @@ def compose_dashboard(data: Dict[str, Any], property_name: str, period: Any, out
 
     gsc = data.get("gsc")
     gsc_available = bool(gsc and gsc.get("available"))
+    pacing = northstar.compute_pacing(data, data.get("goal"))
 
-    panel_specs = [
-        ("header", 0.55),
-        ("kpi", 1.05),
-        ("health", 1.75),
-        ("acquisition", 1.75),
-        ("daily_users", 1.55),
-        ("hourly", 1.4),
-        ("geography", 1.75),
-        ("funnel", 1.2),
-    ]
+    panel_specs = list(BASE_PANEL_SPECS)
     if gsc_available:
-        panel_specs.append(("gsc", 1.35))
+        panel_specs.append(("gsc", GSC_PANEL_RATIO))
+    panel_specs.append(("insights", INSIGHTS_PANEL_RATIO))
+    if pacing:
+        panel_specs.append(("pacing", PACING_PANEL_RATIO))
 
-    fig = plt.figure(figsize=(FIG_WIDTH_IN, FIG_HEIGHT_IN), dpi=FIG_DPI, facecolor=SURFACE_BG)
+    total_ratio = sum(ratio for _, ratio in panel_specs)
+    fig_height_in = (PX_PER_RATIO_UNIT * total_ratio) / FIG_DPI
+
+    fig = plt.figure(figsize=(FIG_WIDTH_IN, fig_height_in), dpi=FIG_DPI, facecolor=SURFACE_BG)
     ratios = [height for _, height in panel_specs]
     gs = gridspec.GridSpec(
         len(panel_specs), 1, figure=fig, height_ratios=ratios, hspace=0.6,
-        left=0.20, right=0.95, top=0.98, bottom=0.015,
+        left=0.24, right=0.95, top=0.98, bottom=0.015,
     )
     cells = {name: gs[i] for i, (name, _) in enumerate(panel_specs)}
 
@@ -412,6 +586,9 @@ def compose_dashboard(data: Dict[str, Any], property_name: str, period: Any, out
     _draw_funnel(fig, cells["funnel"], data.get("events") or {})
     if gsc_available:
         _draw_gsc_striking_distance(fig, cells["gsc"], gsc)
+    _draw_insights_panel(fig, cells["insights"], data)
+    if pacing:
+        _draw_pacing_panel(fig, cells["pacing"], pacing)
 
     fig.savefig(output_path, dpi=FIG_DPI, facecolor=SURFACE_BG)
     plt.close(fig)
