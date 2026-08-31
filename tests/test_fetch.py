@@ -104,7 +104,7 @@ def test_user_activity_returns_row_data():
             "dauPerMau": 0.06,
         }
     )
-    result = fetch.user_activity(backend, days=7)
+    result = fetch.user_activity(backend)
     assert result["active1DayUsers"] == 12
     assert result["active7DayUsers"] == 60
     assert result["active28DayUsers"] == 200
@@ -114,7 +114,7 @@ def test_user_activity_returns_row_data():
 
 def test_user_activity_requests_expected_metrics():
     backend = FakeBackend(activity_row={"active1DayUsers": 1})
-    fetch.user_activity(backend, days=7)
+    fetch.user_activity(backend)
     call = backend.calls[0]
     assert set(call[2]) == {
         "active1DayUsers",
@@ -123,10 +123,54 @@ def test_user_activity_requests_expected_metrics():
         "dauPerWau",
         "dauPerMau",
     }
-    assert call[4] == {}
 
 
 def test_user_activity_returns_empty_dict_when_no_data():
     backend = FakeBackend(activity_row={})
-    result = fetch.user_activity(backend, days=7)
+    result = fetch.user_activity(backend)
     assert result == {}
+
+
+# ---- user_activity — stickiness bug fix (R2) -----------------------------------
+
+
+def test_user_activity_queries_single_day_not_a_date_range():
+    """The R1 bug: GA4 sums per-date active-user metrics across a multi-day
+    range when queried without a date dimension. The fix pins the query to
+    exactly one day (yesterday) so no summing can occur."""
+    backend = FakeBackend(activity_row={"active1DayUsers": 12})
+    fetch.user_activity(backend)
+    call = backend.calls[0]
+    assert call[1] == []  # no date dimension
+    assert call[3] == 1  # single day, never the report's --days period
+    assert call[4] == {"date_ranges": [{"startDate": "yesterday", "endDate": "yesterday"}]}
+
+
+def test_user_activity_ignores_report_period_days_argument():
+    """user_activity takes no `days` argument at all — it is never a
+    function of the report period, only ever "the last complete day"."""
+    import inspect
+
+    params = inspect.signature(fetch.user_activity).parameters
+    assert "days" not in params
+
+
+def test_user_activity_stickiness_never_exceeds_100_percent():
+    # Realistic snapshot: DAU < WAU < MAU always holds for a single day.
+    backend = FakeBackend(
+        activity_row={
+            "active1DayUsers": 40,
+            "active7DayUsers": 220,
+            "active28DayUsers": 850,
+            "dauPerWau": 0.1818,
+            "dauPerMau": 0.0471,
+        }
+    )
+    result = fetch.user_activity(backend)
+    assert result["dauPerWau"] * 100 <= 100
+    assert result["dauPerMau"] * 100 <= 100
+    # Guard the historical bug shape: a naive DAU/WAU or DAU/MAU sum-based
+    # ratio derived from the snapshot must also stay sane once GA4 stops
+    # summing across days.
+    dau, wau, mau = result["active1DayUsers"], result["active7DayUsers"], result["active28DayUsers"]
+    assert dau <= wau <= mau

@@ -9,7 +9,12 @@ Three render modes:
 
 from typing import Any, Dict, List, Optional, Tuple
 
-BOX_WIDTH = 78
+from . import report_activity, report_content, report_tech, report_traffic
+from .format import BOX_WIDTH, bar, box, delta_arrow, fmt_num, fmt_pct, fmt_value
+from .format import section_header_full as _section_header_full
+from .format import section_header_telegram as _section_header_telegram
+from .format import sorted_scores as _sorted_scores
+from .format import status_icon as _status_icon
 
 EXEC_METRIC_SPECS: List[Tuple[str, str, bool, str]] = [
     ("Sessions", "sessions", False, "num"),
@@ -24,70 +29,6 @@ EXEC_METRIC_SPECS: List[Tuple[str, str, bool, str]] = [
 ]
 
 HEALTH_LABELS = ["Growth", "Content", "Engagement", "Mobile", "Geo Diversity", "Retention", "Traffic Diversity"]
-
-
-# ---- formatting helpers ------------------------------------------------------
-
-
-def fmt_num(n: float) -> str:
-    n = float(n or 0)
-    if n >= 1_000_000:
-        return f"{n / 1_000_000:.1f}M"
-    if n >= 1_000:
-        return f"{n / 1_000:.1f}K"
-    return str(int(n))
-
-
-def fmt_pct(value: float, decimals: int = 1) -> str:
-    return f"{float(value or 0) * 100:.{decimals}f}%"
-
-
-def fmt_value(value: float, kind: str) -> str:
-    if kind == "pct":
-        return fmt_pct(value)
-    if kind == "duration":
-        return f"{float(value or 0):.0f}s"
-    if kind == "decimal":
-        return f"{float(value or 0):.2f}"
-    return fmt_num(value)
-
-
-def delta_arrow(current: float, previous: Optional[float], reverse: bool = False) -> str:
-    """WoW change indicator. `reverse=True` means down is good (e.g. bounce rate)."""
-    current = float(current or 0)
-    if not previous:
-        return "NEW" if current > 0 else "—"
-    change = (current - previous) / previous * 100
-    if reverse:
-        change = -change
-    if change > 10:
-        return f"🟢 +{change:.0f}%"
-    if change > 0:
-        return f"↑{change:.0f}%"
-    if change < -10:
-        return f"🔴 {change:.0f}%"
-    if change < 0:
-        return f"↓{abs(change):.0f}%"
-    return "→"
-
-
-def bar(value: float, max_value: float = 100, width: int = 20) -> str:
-    if max_value == 0:
-        return "░" * width
-    filled = max(0, min(width, int(value / max_value * width)))
-    return "█" * filled + "░" * (width - filled)
-
-
-def _status_icon(score: int) -> str:
-    if score >= 80:
-        return "✅"
-    if score >= 60:
-        return "⚠️"
-    return "🔴"
-
-
-def _sorted_scores(scores: Dict[str, Optional[int]]) -> List[Tuple[str, Optional[int]]]:
-    return sorted(scores.items(), key=lambda item: item[1] if item[1] is not None else -1, reverse=True)
 
 
 # ---- section builders (mode-agnostic content, mode-specific formatting) -----
@@ -141,19 +82,8 @@ def _activity_lines(data: Dict[str, Any]) -> List[str]:
 # ---- full ANSI mode -----------------------------------------------------------
 
 
-def _box(lines: List[str], width: int = BOX_WIDTH) -> str:
-    top = "╔" + "═" * (width + 2) + "╗"
-    bottom = "╚" + "═" * (width + 2) + "╝"
-    body = ["║ " + line.ljust(width) + " ║" for line in lines]
-    return "\n".join([top, "║" + " " * (width + 2) + "║"] + body + ["║" + " " * (width + 2) + "║", bottom])
-
-
-def _section_header_full(title: str, emoji: str) -> str:
-    return f"\n{'═' * 80}\n  {emoji} {title}\n{'═' * 80}"
-
-
 def render_full(data: Dict[str, Any]) -> str:
-    lines = [_box(_banner_lines(data)), "", f"   {_live_now_line(data)}"]
+    lines = [box(_banner_lines(data)), "", f"   {_live_now_line(data)}"]
 
     lines.append(_section_header_full("EXECUTIVE SUMMARY", "📊"))
     lines.append(f"\n   {'Metric':<22} {'Current':>12} {'Previous':>12} {'Change':>12}")
@@ -177,14 +107,19 @@ def render_full(data: Dict[str, Any]) -> str:
     overall_str = f"{overall}/100" if overall is not None else "N/A"
     lines.append(f"   🎯 OVERALL SCORE: {overall_str} (Grade {health['grade']})")
 
+    lines.append(report_traffic.acquisition_full(data))
+    lines.append(report_traffic.geography_full(data))
+    lines.append(report_content.content_full(data))
+    lines.append(report_content.user_segments_full(data))
+    lines.append(report_activity.events_full(data))
+    lines.append(report_activity.time_patterns_full(data))
+    lines.append(report_tech.technology_full(data))
+    lines.append(report_tech.insights_full(data))
+
     return "\n".join(lines)
 
 
 # ---- telegram mode (width-safe, no box-art) -----------------------------------
-
-
-def _section_header_telegram(title: str, emoji: str) -> str:
-    return f"\n{emoji} {title}"
 
 
 def render_telegram(data: Dict[str, Any]) -> str:
@@ -212,6 +147,15 @@ def render_telegram(data: Dict[str, Any]) -> str:
     overall_str = f"{overall}/100" if overall is not None else "N/A"
     lines.append(f"🎯 OVERALL: {overall_str} (Grade {health['grade']})")
 
+    lines.append(report_traffic.acquisition_telegram(data))
+    lines.append(report_traffic.geography_telegram(data))
+    lines.append(report_content.content_telegram(data))
+    lines.append(report_content.user_segments_telegram(data))
+    lines.append(report_activity.events_telegram(data))
+    lines.append(report_activity.time_patterns_telegram(data))
+    lines.append(report_tech.technology_telegram(data))
+    lines.append(report_tech.insights_telegram(data))
+
     return "\n".join(lines)
 
 
@@ -234,6 +178,14 @@ def render_json(data: Dict[str, Any]) -> Dict[str, Any]:
             "overall": data["health"]["overall"],
             "grade": data["health"]["grade"],
         },
+        "acquisition": data.get("acquisition", {}),
+        "geography": data.get("geography", {}),
+        "content": data.get("content", {}),
+        "user_segments": data.get("segments", {}),
+        "events": data.get("events", {}),
+        "time_patterns": data.get("time_patterns", {}),
+        "technology": data.get("technology", {}),
+        "insights": data.get("insights", []),
     }
 
 

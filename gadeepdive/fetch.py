@@ -50,7 +50,20 @@ def executive_summary(backend: Backend, days: int) -> Dict[str, Dict[str, Any]]:
     }
 
 
-def user_activity(backend: Backend, days: int) -> Dict[str, Any]:
-    """§3 User Activity — DAU/WAU/MAU + stickiness ratios."""
-    rows = backend.run_report([], ACTIVITY_METRICS, days)
+def user_activity(backend: Backend) -> Dict[str, Any]:
+    """§3 User Activity — DAU/WAU/MAU + stickiness, as a POINT-IN-TIME
+    snapshot for the last complete day.
+
+    GA4's rolling active-user metrics (active1DayUsers/7Day/28Day) are
+    per-date metrics: querying them over a multi-day range with no `date`
+    dimension makes GA4 SUM each day's value across the range, which is what
+    produced DAU/WAU and DAU/MAU readings above 100% in R1. The fix is a
+    single-row query pinned to exactly one day (yesterday, the last complete
+    day) — never a range, never a date-dimension sum. Stickiness is read
+    directly off the dauPerWau/dauPerMau metrics GA4 computes server-side,
+    never derived by dividing DAU/WAU or DAU/MAU ourselves.
+    """
+    rows = backend.run_report(
+        [], ACTIVITY_METRICS, 1, extra={"date_ranges": [{"startDate": "yesterday", "endDate": "yesterday"}]}
+    )
     return dict(rows[0]) if rows else {}
