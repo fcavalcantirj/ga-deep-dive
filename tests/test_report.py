@@ -169,20 +169,48 @@ def test_render_full_overall_na_when_no_scores_available():
 
 # ---- render_telegram -------------------------------------------------------------
 
+ANSI_ESCAPE = "\x1b"
+BOX_DRAWING_CHARS = ("║", "╔", "╗", "╚", "╝", "═", "▓")
+
+
+def _code_block_lines(output: str):
+    """Extract every line that lives inside a ```code block``` fence."""
+    lines = []
+    in_block = False
+    for line in output.splitlines():
+        if line.strip() == "```":
+            in_block = not in_block
+            continue
+        if in_block:
+            lines.append(line)
+    return lines
+
 
 def test_render_telegram_has_no_box_art():
     output = report.render_telegram(SAMPLE_DATA)
-    for box_char in ("╔", "╗", "╚", "╝", "║"):
+    for box_char in BOX_DRAWING_CHARS:
         assert box_char not in output
+
+
+def test_render_telegram_has_no_ansi_escapes():
+    output = report.render_telegram(SAMPLE_DATA)
+    assert ANSI_ESCAPE not in output
 
 
 def test_render_telegram_still_has_key_content():
     output = report.render_telegram(SAMPLE_DATA)
     assert "REPO-ATLAS" in output
     assert "LIVE NOW" in output
-    assert "EXECUTIVE SUMMARY" in output
-    assert "HEALTH DASHBOARD" in output
-    assert "OVERALL" in output
+    assert "**📊 EXECUTIVE SUMMARY**" in output
+    assert "**📈 USER ACTIVITY**" in output
+    assert "**🏥 HEALTH**" in output
+    assert "Overall" in output
+
+
+def test_render_telegram_section_titles_are_bold_markdown_with_emoji():
+    output = report.render_telegram(SAMPLE_DATA)
+    for title in ("📊 EXECUTIVE SUMMARY", "📈 USER ACTIVITY", "🏥 HEALTH", "🚦 ACQUISITION", "🌍 GEOGRAPHY", "💡 ACTIONABLE INSIGHTS"):
+        assert f"**{title}**" in output
 
 
 def test_render_telegram_shows_new_when_no_previous_value():
@@ -190,9 +218,44 @@ def test_render_telegram_shows_new_when_no_previous_value():
     assert "NEW" in output
 
 
-def test_render_telegram_shows_no_data_for_stub_scores():
+def test_render_telegram_shows_na_for_stub_scores():
     output = report.render_telegram(SAMPLE_DATA)
-    assert "no data yet" in output
+    assert "n/a" in output
+
+
+def test_render_telegram_code_block_lines_stay_within_phone_width():
+    output = report.render_telegram(SAMPLE_DATA)
+    for line in _code_block_lines(output):
+        assert len(line) <= 30, f"line exceeds 30 cols: {line!r}"
+
+
+def test_render_telegram_bars_use_only_block_characters():
+    output = report.render_telegram(SAMPLE_DATA)
+    for line in _code_block_lines(output):
+        bar_chars = set(ch for ch in line if ch in "█░")
+        if bar_chars:
+            assert bar_chars <= {"█", "░"}
+
+
+def test_render_telegram_wow_delta_polarity_matches_direction():
+    # Sessions grew 157 vs 48 -> green; if we flip current below previous it must flip to red.
+    output_up = report.render_telegram(SAMPLE_DATA)
+    exec_block = output_up[output_up.index("EXECUTIVE SUMMARY") : output_up.index("USER ACTIVITY")]
+    sessions_line = next(line for line in exec_block.splitlines() if line.strip().startswith("sessions"))
+    assert "🟢" in sessions_line
+
+    data = json.loads(json.dumps(SAMPLE_DATA))
+    data["executive"]["current"]["sessions"] = 10
+    data["executive"]["previous"]["sessions"] = 48
+    output_down = report.render_telegram(data)
+    exec_block_down = output_down[output_down.index("EXECUTIVE SUMMARY") : output_down.index("USER ACTIVITY")]
+    sessions_line_down = next(line for line in exec_block_down.splitlines() if line.strip().startswith("sessions"))
+    assert "🔴" in sessions_line_down
+
+
+def test_render_telegram_health_none_scores_render_na_not_python_none():
+    output = report.render_telegram(SAMPLE_DATA)
+    assert "None" not in output
 
 
 # ---- render_json ------------------------------------------------------------------

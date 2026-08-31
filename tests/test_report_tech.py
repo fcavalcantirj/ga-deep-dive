@@ -44,6 +44,19 @@ def test_technology_telegram_has_no_box_art():
     assert "Chrome" in output
 
 
+def test_technology_telegram_is_bold_title_with_code_block_tables():
+    output = report_tech.technology_telegram(DATA)
+    assert "**💻 TECHNOLOGY**" in output
+    assert "Top Resolutions:" in output
+    assert "1920x1080" in output
+
+
+def test_technology_telegram_empty_shows_no_data():
+    output = report_tech.technology_telegram(EMPTY_DATA)
+    assert "no browser data" in output
+    assert "no resolution data" in output
+
+
 # ---- insights -----------------------------------------------------------------------------
 
 
@@ -65,3 +78,15 @@ def test_insights_telegram_has_no_box_art_and_shows_arrow():
     for box_char in ("╔", "╗", "╚", "╝", "║"):
         assert box_char not in output
     assert "→" in output
+
+
+def test_insights_telegram_shows_icon_message_and_italic_action():
+    output = report_tech.insights_telegram(DATA)
+    assert "**💡 ACTIONABLE INSIGHTS**" in output
+    assert "🔴 Organic Search drives 90% of sessions" in output
+    assert "*→ Diversify acquisition channels*" in output
+
+
+def test_insights_telegram_empty_shows_no_insights():
+    output = report_tech.insights_telegram(EMPTY_DATA)
+    assert "no insights" in output

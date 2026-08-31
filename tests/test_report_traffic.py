@@ -55,8 +55,44 @@ def test_acquisition_telegram_has_no_box_art():
     output = report_traffic.acquisition_telegram(DATA)
     for box_char in ("╔", "╗", "╚", "╝", "║"):
         assert box_char not in output
-    assert "Organic Search" in output
+    assert "Organic" in output  # truncated to fit the phone-width column
     assert "Top Referrer" in output
+
+
+def test_acquisition_telegram_is_bold_title_with_code_block_table():
+    output = report_traffic.acquisition_telegram(DATA)
+    assert "**🚦 ACQUISITION**" in output
+    assert "```" in output
+    assert "Direct" in output
+
+
+def test_acquisition_telegram_shows_top_referrer_as_source_medium_and_sessions():
+    output = report_traffic.acquisition_telegram(DATA)
+    assert "github.com / referral — 45 sessions" in output
+
+
+def test_acquisition_telegram_first_touch_shows_source_slash_medium_not_none():
+    output = report_traffic.acquisition_telegram(DATA)
+    assert "google/organic" in output
+    assert "None" not in output
+
+
+def test_acquisition_telegram_empty_shows_no_data():
+    output = report_traffic.acquisition_telegram(EMPTY_DATA)
+    assert "no acquisition data" in output
+    assert "Top Referrer: no referral traffic" in output
+    assert "First-Touch Attribution: no data" in output
+
+
+def test_acquisition_telegram_table_rows_stay_within_phone_width():
+    output = report_traffic.acquisition_telegram(DATA)
+    in_block = False
+    for line in output.splitlines():
+        if line.strip() == "```":
+            in_block = not in_block
+            continue
+        if in_block:
+            assert len(line) <= 30, f"line exceeds 30 cols: {line!r}"
 
 
 # ---- geography --------------------------------------------------------------------
@@ -82,8 +118,21 @@ def test_geography_telegram_has_no_box_art():
     output = report_traffic.geography_telegram(DATA)
     for box_char in ("╔", "╗", "╚", "╝", "║"):
         assert box_char not in output
-    assert "United States" in output
+    assert "United" in output  # truncated to fit the phone-width column
     assert "★★★★★" in output
+
+
+def test_geography_telegram_is_bold_title_with_code_block_table():
+    output = report_traffic.geography_telegram(DATA)
+    assert "**🌍 GEOGRAPHY**" in output
+    assert "```" in output
+    assert "en-us" in output
+
+
+def test_geography_telegram_empty_shows_no_data():
+    output = report_traffic.geography_telegram(EMPTY_DATA)
+    assert "no geography data" in output
+    assert "Languages: no language data" in output
 
 
 # ---- top-N display caps -----------------------------------------------------------
@@ -114,8 +163,10 @@ def test_geography_full_caps_countries_at_ten():
 
 def test_geography_telegram_caps_countries_at_ten():
     output = report_traffic.geography_telegram(MANY_COUNTRIES_DATA)
-    assert "Country 9" in output
-    assert "Country 10" not in output
+    # session counts are 100..86 for rows 0..14 (one per country); only the
+    # first ten rows (sessions 100..91) should survive the cap.
+    assert "91" in output
+    assert "90" not in output
 
 
 def test_acquisition_full_caps_first_touch_at_eight():
@@ -124,7 +175,7 @@ def test_acquisition_full_caps_first_touch_at_eight():
     assert "source8" not in output
 
 
-def test_acquisition_telegram_caps_first_touch_at_eight():
+def test_acquisition_telegram_caps_first_touch_at_seven():
     output = report_traffic.acquisition_telegram(MANY_FIRST_TOUCH_DATA)
-    assert "source7" in output
-    assert "source8" not in output
+    assert "source6" in output
+    assert "source7" not in output

@@ -45,6 +45,17 @@ def test_events_telegram_has_no_box_art():
     assert "commit_pushed" in output
 
 
+def test_events_telegram_is_bold_title_with_code_block_table():
+    output = report_activity.events_telegram(DATA)
+    assert "**⚡ EVENTS**" in output
+    assert "```" in output
+
+
+def test_events_telegram_empty_shows_no_data():
+    output = report_activity.events_telegram(EMPTY_DATA)
+    assert "no event data" in output
+
+
 # ---- top-N display cap -------------------------------------------------------------
 
 MANY_EVENTS_DATA = {
@@ -59,10 +70,10 @@ def test_events_full_caps_at_fifteen():
     assert "event_15" not in output
 
 
-def test_events_telegram_caps_at_fifteen():
+def test_events_telegram_caps_at_ten():
     output = report_activity.events_telegram(MANY_EVENTS_DATA)
-    assert "event_14" in output
-    assert "event_15" not in output
+    assert "event_9" in output
+    assert "event_10" not in output
 
 
 # ---- time patterns --------------------------------------------------------------------
@@ -86,8 +97,22 @@ def test_time_patterns_full_empty_shows_no_data():
     assert "no daily data" in output
 
 
-def test_time_patterns_telegram_has_no_box_art_and_shows_peak():
+def test_time_patterns_telegram_has_no_box_art():
     output = report_activity.time_patterns_telegram(DATA)
     for box_char in ("╔", "╗", "╚", "╝", "║"):
         assert box_char not in output
-    assert "← PEAK" in output
+    assert "Sunday" in output
+    assert "08-26" in output
+
+
+def test_time_patterns_telegram_is_bold_title_with_code_block_tables():
+    output = report_activity.time_patterns_telegram(DATA)
+    assert "**🕐 TIME PATTERNS**" in output
+    assert "Daily Sessions:" in output
+    assert "```" in output
+
+
+def test_time_patterns_telegram_empty_shows_no_data():
+    output = report_activity.time_patterns_telegram(EMPTY_DATA)
+    assert "no day-of-week data" in output
+    assert "no daily data" in output
