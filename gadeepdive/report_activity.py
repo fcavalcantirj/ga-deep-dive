@@ -6,6 +6,8 @@ from typing import Any, Dict
 
 from .format import bar, fmt_num, section_header_full, section_header_telegram, sparkline_lines
 
+EVENTS_DISPLAY_LIMIT = 15
+
 # ---- events -------------------------------------------------------------------------
 
 
@@ -18,7 +20,7 @@ def events_full(data: Dict[str, Any]) -> str:
     else:
         lines.append(f"\n   {'Event':<24} {'Count':>10} {'Per User':>10}")
         lines.append(f"   {'─' * 48}")
-        for e in events:
+        for e in events[:EVENTS_DISPLAY_LIMIT]:
             lines.append(f"   {e['name']:<24} {fmt_num(e['count']):>10} {e['per_user']:>10.2f}")
 
     return "\n".join(lines)
@@ -31,7 +33,7 @@ def events_telegram(data: Dict[str, Any]) -> str:
     if not events:
         lines.append("no event data")
     else:
-        for e in events:
+        for e in events[:EVENTS_DISPLAY_LIMIT]:
             lines.append(f"{e['name']}: {fmt_num(e['count'])} ({e['per_user']:.2f}/user)")
 
     return "\n".join(lines)

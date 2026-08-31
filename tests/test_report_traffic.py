@@ -84,3 +84,47 @@ def test_geography_telegram_has_no_box_art():
         assert box_char not in output
     assert "United States" in output
     assert "★★★★★" in output
+
+
+# ---- top-N display caps -----------------------------------------------------------
+
+MANY_COUNTRIES_DATA = {
+    "acquisition": {},
+    "geography": {
+        "countries": [{"name": f"Country {i}", "sessions": 100 - i, "share": 0.1, "engaged_pct": 0.5, "engagement_rate": 0.5, "stars": 3} for i in range(15)],
+        "languages": [],
+    },
+}
+
+MANY_FIRST_TOUCH_DATA = {
+    "acquisition": {
+        "channels": [],
+        "top_referrer": None,
+        "first_touch": [{"source": f"source{i}", "medium": "organic", "sessions": 100 - i, "share": 0.05} for i in range(12)],
+    },
+    "geography": {},
+}
+
+
+def test_geography_full_caps_countries_at_ten():
+    output = report_traffic.geography_full(MANY_COUNTRIES_DATA)
+    assert "Country 9" in output
+    assert "Country 10" not in output
+
+
+def test_geography_telegram_caps_countries_at_ten():
+    output = report_traffic.geography_telegram(MANY_COUNTRIES_DATA)
+    assert "Country 9" in output
+    assert "Country 10" not in output
+
+
+def test_acquisition_full_caps_first_touch_at_eight():
+    output = report_traffic.acquisition_full(MANY_FIRST_TOUCH_DATA)
+    assert "source7" in output
+    assert "source8" not in output
+
+
+def test_acquisition_telegram_caps_first_touch_at_eight():
+    output = report_traffic.acquisition_telegram(MANY_FIRST_TOUCH_DATA)
+    assert "source7" in output
+    assert "source8" not in output

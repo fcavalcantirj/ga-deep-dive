@@ -8,6 +8,9 @@ from typing import Any, Dict
 
 from .format import bar, fmt_num, fmt_pct, section_header_full, section_header_telegram
 
+ENTRY_POINTS_DISPLAY_LIMIT = 10
+MOBILE_DEVICES_DISPLAY_LIMIT = 8
+
 # ---- scroll depth -----------------------------------------------------------------
 
 
@@ -65,7 +68,7 @@ def user_flow_full(data: Dict[str, Any]) -> str:
     else:
         lines.append(f"\n   {'Landing Page':<32} {'Entries':>10} {'Bounce':>8}")
         lines.append(f"   {'─' * 54}")
-        for e in entries[:10]:
+        for e in entries[:ENTRY_POINTS_DISPLAY_LIMIT]:
             lines.append(f"   {e['path']:<32} {fmt_num(e['entries']):>10} {fmt_pct(e['bounce_pct']):>8}")
 
     return "\n".join(lines)
@@ -78,7 +81,7 @@ def user_flow_telegram(data: Dict[str, Any]) -> str:
     if not entries:
         lines.append("no entry point data")
     else:
-        for e in entries[:10]:
+        for e in entries[:ENTRY_POINTS_DISPLAY_LIMIT]:
             lines.append(f"{e['path']}: {fmt_num(e['entries'])} entries ({fmt_pct(e['bounce_pct'])} bounce)")
 
     return "\n".join(lines)
@@ -197,7 +200,7 @@ def mobile_devices_full(data: Dict[str, Any]) -> str:
     else:
         lines.append(f"\n   {'Model':<28} {'Sessions':>10}")
         lines.append(f"   {'─' * 40}")
-        for m in models[:10]:
+        for m in models[:MOBILE_DEVICES_DISPLAY_LIMIT]:
             lines.append(f"   {m['model']:<28} {fmt_num(m['sessions']):>10}")
 
     return "\n".join(lines)
@@ -210,7 +213,7 @@ def mobile_devices_telegram(data: Dict[str, Any]) -> str:
     if not models:
         lines.append("No mobile device data")
     else:
-        for m in models[:10]:
+        for m in models[:MOBILE_DEVICES_DISPLAY_LIMIT]:
             lines.append(f"{m['model']}: {fmt_num(m['sessions'])} sessions")
 
     return "\n".join(lines)

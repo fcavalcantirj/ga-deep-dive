@@ -174,3 +174,33 @@ def test_full_monty_complete_telegram_shows_property_and_period():
     output = report_part2.full_monty_complete_telegram(DATA)
     assert "REPO-ATLAS" in output
     assert "Last 7 days" in output
+
+
+# ---- top-N display caps -----------------------------------------------------------
+
+MANY_MOBILE_DATA = {**DATA, "mobile_devices": {"models": [{"model": f"Device {i}", "sessions": 100 - i} for i in range(12)]}}
+MANY_ENTRIES_DATA = {**DATA, "user_flow": {"entries": [{"path": f"/page-{i}", "entries": 100 - i, "bounce_pct": 0.3} for i in range(15)]}}
+
+
+def test_mobile_devices_full_caps_at_eight():
+    output = report_part2.mobile_devices_full(MANY_MOBILE_DATA)
+    assert "Device 7" in output
+    assert "Device 8" not in output
+
+
+def test_mobile_devices_telegram_caps_at_eight():
+    output = report_part2.mobile_devices_telegram(MANY_MOBILE_DATA)
+    assert "Device 7" in output
+    assert "Device 8" not in output
+
+
+def test_user_flow_full_caps_at_ten():
+    output = report_part2.user_flow_full(MANY_ENTRIES_DATA)
+    assert "/page-9" in output
+    assert "/page-10" not in output
+
+
+def test_user_flow_telegram_caps_at_ten():
+    output = report_part2.user_flow_telegram(MANY_ENTRIES_DATA)
+    assert "/page-9" in output
+    assert "/page-10" not in output
