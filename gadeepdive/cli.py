@@ -11,7 +11,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from . import fetch, fetch_activity, fetch_content, fetch_segments, fetch_technology, fetch_traffic, health, insights, registry, report
+from . import fetch, fetch_activity, fetch_content, fetch_gsc, fetch_part2, fetch_segments, fetch_technology, fetch_traffic, health, insights, registry, report
 from .backends.composio import ComposioBackend
 from .backends.native import NativeBackend
 
@@ -40,7 +40,7 @@ def _utc_now_str() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 
-def collect_report_data(backend, property_name: str, days: int) -> Dict[str, Any]:
+def collect_report_data(backend, property_name: str, days: int, no_gsc: bool = False) -> Dict[str, Any]:
     realtime = fetch.realtime_active_users(backend)
     executive = fetch.executive_summary(backend, days)
     activity = fetch.user_activity(backend)
@@ -52,6 +52,14 @@ def collect_report_data(backend, property_name: str, days: int) -> Dict[str, Any
     time_patterns = fetch_activity.time_patterns(backend, days)
     technology = fetch_technology.technology(backend, days)
     dashboard = health.compute_dashboard(executive, activity, acquisition, geography, content, segments)
+
+    scroll_depth = fetch_part2.scroll_depth(backend, days)
+    user_flow = fetch_part2.user_flow(backend, days)
+    audiences = fetch_part2.audiences(backend, days)
+    hourly_performance = fetch_part2.hourly_performance(backend, days)
+    acquisition_over_time = fetch_part2.acquisition_over_time(backend, days)
+    mobile_devices = fetch_part2.mobile_devices(backend, days)
+    gsc = None if no_gsc else fetch_gsc.gsc_report(backend, days)
 
     data = {
         "property": property_name,
@@ -68,6 +76,13 @@ def collect_report_data(backend, property_name: str, days: int) -> Dict[str, Any
         "events": events,
         "time_patterns": time_patterns,
         "technology": technology,
+        "scroll_depth": scroll_depth,
+        "user_flow": user_flow,
+        "audiences": audiences,
+        "hourly_performance": hourly_performance,
+        "acquisition_over_time": acquisition_over_time,
+        "mobile_devices": mobile_devices,
+        "gsc": gsc,
     }
     data["insights"] = insights.compute(data)
     return data
@@ -84,7 +99,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 1
 
     backend = _make_backend(args.backend, prop)
-    data = collect_report_data(backend, args.property, args.days)
+    data = collect_report_data(backend, args.property, args.days, no_gsc=args.no_gsc)
 
     if args.json:
         print(json.dumps(report.render(data, "json"), indent=2))

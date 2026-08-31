@@ -105,3 +105,11 @@ def section_header_full(title: str, emoji: str) -> str:
 
 def section_header_telegram(title: str, emoji: str) -> str:
     return f"\n{emoji} {title}"
+
+
+def part_label_full(title: str) -> str:
+    return f"\n{'▓' * 80}\n  {title}\n{'▓' * 80}"
+
+
+def part_label_telegram(title: str) -> str:
+    return f"\n=== {title} ==="

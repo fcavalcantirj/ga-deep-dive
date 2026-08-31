@@ -9,8 +9,10 @@ Three render modes:
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import report_activity, report_content, report_tech, report_traffic
+from . import report_activity, report_content, report_gsc, report_part2, report_tech, report_traffic
 from .format import BOX_WIDTH, bar, box, delta_arrow, fmt_num, fmt_pct, fmt_value
+from .format import part_label_full as _part_label_full
+from .format import part_label_telegram as _part_label_telegram
 from .format import section_header_full as _section_header_full
 from .format import section_header_telegram as _section_header_telegram
 from .format import sorted_scores as _sorted_scores
@@ -32,6 +34,14 @@ HEALTH_LABELS = ["Growth", "Content", "Engagement", "Mobile", "Geo Diversity", "
 
 
 # ---- section builders (mode-agnostic content, mode-specific formatting) -----
+
+
+def _top_banner_lines(data: Dict[str, Any]) -> List[str]:
+    return [
+        f"🏴‍☠️ {data['property'].upper()} FULL ANALYTICS REPORT",
+        f"Generated: {data['generated_at']}",
+        f"Period: Last {data['days']} days",
+    ]
 
 
 def _banner_lines(data: Dict[str, Any]) -> List[str]:
@@ -83,7 +93,11 @@ def _activity_lines(data: Dict[str, Any]) -> List[str]:
 
 
 def render_full(data: Dict[str, Any]) -> str:
-    lines = [box(_banner_lines(data)), "", f"   {_live_now_line(data)}"]
+    lines = list(_top_banner_lines(data))
+    lines.append(_part_label_full("PART 1: EXECUTIVE SUMMARY (V3)"))
+    lines.append(box(_banner_lines(data)))
+    lines.append("")
+    lines.append(f"   {_live_now_line(data)}")
 
     lines.append(_section_header_full("EXECUTIVE SUMMARY", "📊"))
     lines.append(f"\n   {'Metric':<22} {'Current':>12} {'Previous':>12} {'Change':>12}")
@@ -116,6 +130,19 @@ def render_full(data: Dict[str, Any]) -> str:
     lines.append(report_tech.technology_full(data))
     lines.append(report_tech.insights_full(data))
 
+    lines.append(_part_label_full("PART 2: THE FULL MONTY (V4)"))
+    lines.append(report_part2.scroll_depth_full(data))
+    lines.append(report_part2.user_flow_full(data))
+    lines.append(report_part2.audiences_full(data))
+    lines.append(report_part2.hourly_performance_full(data))
+    lines.append(report_part2.acquisition_over_time_full(data))
+    lines.append(report_part2.mobile_devices_full(data))
+    lines.append(report_part2.full_monty_complete_full(data))
+
+    gsc_section = report_gsc.gsc_full(data)
+    if gsc_section:
+        lines.append(gsc_section)
+
     return "\n".join(lines)
 
 
@@ -123,7 +150,9 @@ def render_full(data: Dict[str, Any]) -> str:
 
 
 def render_telegram(data: Dict[str, Any]) -> str:
-    lines = list(_banner_lines(data))
+    lines = list(_top_banner_lines(data))
+    lines.append(_part_label_telegram("PART 1: EXECUTIVE SUMMARY (V3)"))
+    lines += _banner_lines(data)
     lines.append("")
     lines.append(_live_now_line(data))
 
@@ -156,6 +185,19 @@ def render_telegram(data: Dict[str, Any]) -> str:
     lines.append(report_tech.technology_telegram(data))
     lines.append(report_tech.insights_telegram(data))
 
+    lines.append(_part_label_telegram("PART 2: THE FULL MONTY (V4)"))
+    lines.append(report_part2.scroll_depth_telegram(data))
+    lines.append(report_part2.user_flow_telegram(data))
+    lines.append(report_part2.audiences_telegram(data))
+    lines.append(report_part2.hourly_performance_telegram(data))
+    lines.append(report_part2.acquisition_over_time_telegram(data))
+    lines.append(report_part2.mobile_devices_telegram(data))
+    lines.append(report_part2.full_monty_complete_telegram(data))
+
+    gsc_section = report_gsc.gsc_telegram(data)
+    if gsc_section:
+        lines.append(gsc_section)
+
     return "\n".join(lines)
 
 
@@ -186,6 +228,15 @@ def render_json(data: Dict[str, Any]) -> Dict[str, Any]:
         "time_patterns": data.get("time_patterns", {}),
         "technology": data.get("technology", {}),
         "insights": data.get("insights", []),
+        "part2": {
+            "scroll_depth": data.get("scroll_depth", {}),
+            "user_flow": data.get("user_flow", {}),
+            "audiences": data.get("audiences", {}),
+            "hourly_performance": data.get("hourly_performance", {}),
+            "acquisition_over_time": data.get("acquisition_over_time", {}),
+            "mobile_devices": data.get("mobile_devices", {}),
+        },
+        "gsc": data.get("gsc"),
     }
 
 

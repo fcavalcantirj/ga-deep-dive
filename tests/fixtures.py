@@ -11,11 +11,13 @@ class FakeBackend:
     previous-period WoW comparison), else it defaults to `tuple(dimensions)`.
     """
 
-    def __init__(self, realtime_rows=None, exec_rows=None, activity_row=None, dim_rows=None):
+    def __init__(self, realtime_rows=None, exec_rows=None, activity_row=None, dim_rows=None, gsc_rows=None, gsc_site=None):
         self.realtime_rows = realtime_rows if realtime_rows is not None else []
         self.exec_rows = exec_rows if exec_rows is not None else []
         self.activity_row = activity_row if activity_row is not None else {}
         self.dim_rows = dim_rows if dim_rows is not None else {}
+        self.gsc_rows = gsc_rows if gsc_rows is not None else []
+        self.gsc_site = gsc_site
         self.calls = []
 
     def run_report(self, dimensions, metrics, days, extra=None):
@@ -33,7 +35,8 @@ class FakeBackend:
         return self.realtime_rows
 
     def run_cohort(self, cohort_spec, dimensions, metrics):
-        raise NotImplementedError("run_cohort not exercised by PART 1 sections 1-4")
+        raise NotImplementedError("run_cohort not exercised by PART 1/2 sections")
 
     def gsc_query(self, dimensions, days, row_limit=25):
-        raise NotImplementedError("gsc_query not exercised by PART 1 sections 1-4")
+        self.calls.append(("gsc_query", dimensions, days, row_limit))
+        return self.gsc_rows

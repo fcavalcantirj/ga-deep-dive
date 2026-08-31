@@ -230,3 +230,101 @@ def test_main_json_includes_all_part1_sections(monkeypatch, capsys):
     for key in ("acquisition", "geography", "content", "user_segments", "events", "time_patterns", "technology", "insights"):
         assert key in payload
     assert payload["acquisition"]["channels"][0]["name"] == "Organic Search"
+
+
+# ---- full §13-19 + GSC integration (PART 2 complete) ------------------------------------
+
+DIM_ROWS_FULL_PART2 = {
+    **DIM_ROWS_FULL,
+    "scroll_distribution": [{"percentScrolled": "90", "eventCount": 80}, {"percentScrolled": "100", "eventCount": 20}],
+    "scroll_by_page": [{"pagePath": "/docs/api-reference", "percentScrolled": "90", "eventCount": 80, "screenPageViews": 100}],
+    "flow_entries": [{"landingPagePlusQueryString": "/", "sessions": 300, "bounceRate": 0.5}],
+    "audiences": [{"audienceName": "Repeat Committers", "activeUsers": 120, "sessions": 300, "engagementRate": 0.55}],
+    "hourly": [{"hour": "21", "sessions": 50, "engagedSessions": 45, "engagementRate": 0.9, "averageSessionDuration": 200.0}],
+    "acq_over_time": [{"date": "20260826", "activeUsers": 120}],
+    "mobile_devices": [{"mobileDeviceModel": "Pixel 9", "sessions": 40}],
+}
+
+GSC_ROWS_FULL = [{"query": "how to deploy a repo", "clicks": 40, "impressions": 400, "ctr": 0.1, "position": 3.2}]
+
+
+def _install_full_fake_backend_with_gsc(monkeypatch, gsc_site="sc-domain:esp-atlas.com"):
+    fake = FakeBackend(
+        realtime_rows=[{"activeUsers": 3}],
+        exec_rows=EXEC_ROWS,
+        activity_row=ACTIVITY_ROW,
+        dim_rows=DIM_ROWS_FULL_PART2,
+        gsc_rows=GSC_ROWS_FULL,
+        gsc_site=gsc_site,
+    )
+    monkeypatch.setattr(cli, "_make_backend", lambda backend_name, prop: fake)
+    return fake
+
+
+def test_main_full_report_renders_part_labels_and_part2_sections(monkeypatch, capsys):
+    _install_full_fake_backend_with_gsc(monkeypatch)
+    exit_code = cli.main(["esp-atlas", "--no-telegram"])
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "PART 1: EXECUTIVE SUMMARY (V3)" in out
+    assert "PART 2: THE FULL MONTY (V4)" in out
+    for header in (
+        "SCROLL DEPTH",
+        "USER FLOW",
+        "GA4 AUDIENCES",
+        "HOURLY PERFORMANCE",
+        "ACQUISITION OVER TIME",
+        "MOBILE DEVICES",
+        "FULL MONTY COMPLETE",
+    ):
+        assert header in out, f"missing section: {header}"
+    assert "← BEST" in out
+    assert "Pixel 9" in out
+
+
+def test_main_full_report_includes_gsc_section_by_default(monkeypatch, capsys):
+    _install_full_fake_backend_with_gsc(monkeypatch)
+    cli.main(["esp-atlas", "--no-telegram"])
+    out = capsys.readouterr().out
+    assert "SEARCH CONSOLE" in out
+    assert "how to deploy a repo" in out
+
+
+def test_main_no_gsc_suppresses_search_console_section(monkeypatch, capsys):
+    _install_full_fake_backend_with_gsc(monkeypatch)
+    cli.main(["esp-atlas", "--no-telegram", "--no-gsc"])
+    out = capsys.readouterr().out
+    assert "SEARCH CONSOLE" not in out
+
+
+def test_main_gsc_no_site_configured_prints_graceful_message(monkeypatch, capsys):
+    _install_full_fake_backend_with_gsc(monkeypatch, gsc_site=None)
+    cli.main(["abecmed", "--no-telegram"])
+    out = capsys.readouterr().out
+    assert "No Search Console site configured for abecmed" in out
+
+
+def test_main_telegram_variant_includes_part2_and_gsc(monkeypatch, capsys):
+    _install_full_fake_backend_with_gsc(monkeypatch)
+    cli.main(["esp-atlas"])
+    out = capsys.readouterr().out
+    telegram_variant = out[out.index("TELEGRAM VARIANT"):]
+    assert "PART 2: THE FULL MONTY (V4)" in telegram_variant
+    assert "SEARCH CONSOLE" in telegram_variant
+
+
+def test_main_json_includes_part2_and_gsc(monkeypatch, capsys):
+    _install_full_fake_backend_with_gsc(monkeypatch)
+    cli.main(["esp-atlas", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert "part2" in payload
+    assert payload["part2"]["mobile_devices"]["models"][0]["model"] == "Pixel 9"
+    assert payload["gsc"]["available"] is True
+    assert payload["gsc"]["top_queries"][0]["query"] == "how to deploy a repo"
+
+
+def test_main_json_no_gsc_sets_gsc_null(monkeypatch, capsys):
+    _install_full_fake_backend_with_gsc(monkeypatch)
+    cli.main(["esp-atlas", "--json", "--no-gsc"])
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["gsc"] is None
