@@ -11,7 +11,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from . import fetch, health, registry, report
+from . import fetch, fetch_activity, fetch_content, fetch_segments, fetch_technology, fetch_traffic, health, insights, registry, report
 from .backends.composio import ComposioBackend
 from .backends.native import NativeBackend
 
@@ -44,9 +44,16 @@ def collect_report_data(backend, property_name: str, days: int) -> Dict[str, Any
     realtime = fetch.realtime_active_users(backend)
     executive = fetch.executive_summary(backend, days)
     activity = fetch.user_activity(backend)
-    dashboard = health.compute_dashboard(executive, activity)
+    acquisition = fetch_traffic.acquisition(backend, days)
+    geography = fetch_traffic.geography(backend, days)
+    content = fetch_content.content(backend, days)
+    segments = fetch_segments.user_segments(backend, days)
+    events = fetch_activity.events(backend, days)
+    time_patterns = fetch_activity.time_patterns(backend, days)
+    technology = fetch_technology.technology(backend, days)
+    dashboard = health.compute_dashboard(executive, activity, acquisition, geography, content, segments)
 
-    return {
+    data = {
         "property": property_name,
         "days": days,
         "generated_at": _utc_now_str(),
@@ -54,7 +61,16 @@ def collect_report_data(backend, property_name: str, days: int) -> Dict[str, Any
         "executive": executive,
         "activity": activity,
         "health": dashboard,
+        "acquisition": acquisition,
+        "geography": geography,
+        "content": content,
+        "segments": segments,
+        "events": events,
+        "time_patterns": time_patterns,
+        "technology": technology,
     }
+    data["insights"] = insights.compute(data)
+    return data
 
 
 def main(argv: Optional[List[str]] = None) -> int:

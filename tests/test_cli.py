@@ -114,9 +114,15 @@ def test_main_passes_days_through_to_backend_calls(monkeypatch, capsys):
     fake = _install_fake_backend(monkeypatch)
     cli.main(["esp-atlas", "--days", "30", "--json"])
     capsys.readouterr()
-    # user_activity is intentionally exempt: it's a point-in-time snapshot of
-    # the last complete day, never a function of the report's --days period.
-    period_calls = [call for call in fake.calls if call[0] == "run_report" and "date_ranges" not in call[4]]
+    # user_activity (point-in-time snapshot) and the time-patterns daily
+    # sparkline (always the last 7 days) are intentionally exempt — neither
+    # is a function of the report's --days period.
+    exempt_row_keys = {"time_daily"}
+    period_calls = [
+        call
+        for call in fake.calls
+        if call[0] == "run_report" and "date_ranges" not in call[4] and call[4].get("row_key") not in exempt_row_keys
+    ]
     days_seen = {call[3] for call in period_calls}
     assert days_seen == {30}
 
@@ -156,3 +162,71 @@ def test_collect_report_data_wires_fetch_and_health(monkeypatch):
     assert data["realtime"] == {"active_users": 5}
     assert data["executive"]["current"]["sessions"] == 157
     assert data["health"]["scores"]["Engagement"] == 32
+
+
+# ---- full §1-12 integration (PART 1 complete) ------------------------------------------
+
+DIM_ROWS_FULL = {
+    "acq_channels": [{"sessionDefaultChannelGroup": "Organic Search", "sessions": 300, "engagedSessions": 210, "bounceRate": 0.3, "averageSessionDuration": 120.0}],
+    "acq_source_medium": [{"sessionSourceMedium": "github.com / referral", "sessions": 45}],
+    "acq_first_touch": [{"firstUserSourceMedium": "google / organic", "sessions": 250}],
+    "geo_country": [{"country": "United States", "sessions": 400, "engagedSessions": 280, "engagementRate": 0.62}],
+    "geo_language": [{"language": "en-us", "sessions": 350}],
+    "content_pages": [{"pagePath": "/docs/api-reference", "screenPageViews": 500, "activeUsers": 300, "engagementRate": 0.6}],
+    "content_trending": [
+        {"pagePath": "/docs/api-reference", "dateRange": "current", "screenPageViews": 500},
+        {"pagePath": "/docs/api-reference", "dateRange": "previous", "screenPageViews": 100},
+    ],
+    "content_landing": [{"landingPage": "/promo/expired-campaign", "sessions": 20, "bounceRate": 1.0}],
+    "segments_new_returning": [{"newVsReturning": "new", "sessions": 300, "engagementRate": 0.4}],
+    "segments_device": [{"deviceCategory": "mobile", "sessions": 200, "engagementRate": 0.35}],
+    "events": [{"eventName": "commit_pushed", "eventCount": 900, "eventCountPerUser": 3.4}],
+    "time_day_of_week": [{"dayOfWeek": "1", "sessions": 100, "engagedSessions": 60}],
+    "time_daily": [{"date": "20260827", "sessions": 30}, {"date": "20260826", "sessions": 40}],
+    "tech_browser": [{"browser": "Chrome", "sessions": 400, "engagedSessions": 280}],
+    "tech_resolution": [{"screenResolution": "1920x1080", "sessions": 300}],
+}
+
+
+def _install_full_fake_backend(monkeypatch):
+    fake = FakeBackend(
+        realtime_rows=[{"activeUsers": 3}],
+        exec_rows=EXEC_ROWS,
+        activity_row=ACTIVITY_ROW,
+        dim_rows=DIM_ROWS_FULL,
+    )
+    monkeypatch.setattr(cli, "_make_backend", lambda backend_name, prop: fake)
+    return fake
+
+
+def test_main_full_report_renders_all_part1_sections(monkeypatch, capsys):
+    _install_full_fake_backend(monkeypatch)
+    exit_code = cli.main(["esp-atlas", "--no-telegram"])
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    for header in (
+        "EXECUTIVE SUMMARY",
+        "HEALTH DASHBOARD",
+        "ACQUISITION",
+        "GEOGRAPHY",
+        "CONTENT",
+        "USER SEGMENTS",
+        "EVENTS",
+        "TIME PATTERNS",
+        "TECHNOLOGY",
+        "ACTIONABLE INSIGHTS",
+    ):
+        assert header in out, f"missing section: {header}"
+    assert "Organic Search" in out
+    assert "United States" in out
+    assert "commit_pushed" in out
+    assert "← PEAK" in out
+
+
+def test_main_json_includes_all_part1_sections(monkeypatch, capsys):
+    _install_full_fake_backend(monkeypatch)
+    cli.main(["esp-atlas", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    for key in ("acquisition", "geography", "content", "user_segments", "events", "time_patterns", "technology", "insights"):
+        assert key in payload
+    assert payload["acquisition"]["channels"][0]["name"] == "Organic Search"
