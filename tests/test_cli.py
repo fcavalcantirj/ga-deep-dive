@@ -471,8 +471,19 @@ def test_main_telegram_variant_includes_part2_and_gsc(monkeypatch, capsys):
     cli.main(["esp-atlas"])
     out = capsys.readouterr().out
     telegram_variant = out[out.index("TELEGRAM VARIANT"):]
-    assert "PART 2: THE FULL MONTY (V4)" in telegram_variant
+    assert "SCROLL DEPTH" in telegram_variant
+    assert "MOBILE DEVICES" in telegram_variant
     assert "SEARCH CONSOLE" in telegram_variant
+
+
+def test_main_telegram_variant_has_no_box_art_or_ansi(monkeypatch, capsys):
+    _install_full_fake_backend_with_gsc(monkeypatch)
+    cli.main(["esp-atlas"])
+    out = capsys.readouterr().out
+    telegram_variant = out[out.index("TELEGRAM VARIANT"):]
+    for box_char in ("║", "╔", "╗", "╚", "╝", "═", "▓"):
+        assert box_char not in telegram_variant
+    assert "\x1b" not in telegram_variant
 
 
 def test_main_json_includes_part2_and_gsc(monkeypatch, capsys):

@@ -4,7 +4,10 @@
 
 from typing import Any, Dict
 
-from .format import bar, fmt_num, fmt_pct, section_header_full, section_header_telegram
+from .format import bar, code_block, fixed_row, fmt_num, fmt_pct, section_header_full, section_header_telegram
+
+TRENDING_TELEGRAM_LIMIT = 5
+PROBLEM_PAGES_TELEGRAM_LIMIT = 5
 
 # ---- content ------------------------------------------------------------------------
 
@@ -52,20 +55,35 @@ def content_telegram(data: Dict[str, Any]) -> str:
     if not sections:
         lines.append("no content data")
     else:
+        rows = [fixed_row([("Section", 8, "l"), ("Views", 6, "r"), ("Users", 6, "r"), ("Eng%", 4, "r")])]
         for s in sections:
-            lines.append(f"{s['section']}: {fmt_num(s['views'])} views, {fmt_pct(s['engagement_pct'])} engaged")
+            rows.append(
+                fixed_row(
+                    [
+                        (s["section"], 8, "l"),
+                        (str(int(s["views"])), 6, "r"),
+                        (str(int(s["users"])), 6, "r"),
+                        (fmt_pct(s["engagement_pct"], 0), 4, "r"),
+                    ]
+                )
+            )
+        lines.append(code_block(rows))
 
     trending = content.get("trending_up", [])
-    if trending:
-        lines.append("🔥 Trending Up:")
-        for t in trending[:5]:
-            lines.append(f"{t['path']} +{t['pct_change'] * 100:.0f}%")
+    lines.append("🔥 Trending Up:")
+    if not trending:
+        lines.append("no WoW gainers")
+    else:
+        rows = [fixed_row([(t["path"], 20, "l"), (f"{t['pct_change'] * 100:+.0f}%", 8, "r")]) for t in trending[:TRENDING_TELEGRAM_LIMIT]]
+        lines.append(code_block(rows))
 
     problems = content.get("problem_pages", [])
-    if problems:
-        lines.append("🚨 Problem Pages:")
-        for p in problems[:5]:
-            lines.append(f"{p['path']} {fmt_pct(p['bounce_pct'])} bounce")
+    lines.append("🚨 Problem Pages:")
+    if not problems:
+        lines.append("none")
+    else:
+        rows = [fixed_row([(p["path"], 22, "l"), (fmt_pct(p["bounce_pct"], 0), 6, "r")]) for p in problems[:PROBLEM_PAGES_TELEGRAM_LIMIT]]
+        lines.append(code_block(rows))
 
     return "\n".join(lines)
 
@@ -105,13 +123,19 @@ def user_segments_telegram(data: Dict[str, Any]) -> str:
     if not new_vs_returning:
         lines.append("no segment data")
     else:
+        rows = [fixed_row([("Segment", 10, "l"), ("Sess", 6, "r"), ("Eng%", 5, "r")])]
         for s in new_vs_returning:
-            lines.append(f"{s['segment']}: {fmt_num(s['sessions'])} ({fmt_pct(s['engagement_pct'])} engaged)")
+            rows.append(fixed_row([(s["segment"], 10, "l"), (fmt_num(s["sessions"]), 6, "r"), (fmt_pct(s["engagement_pct"], 0), 5, "r")]))
+        lines.append(code_block(rows))
 
     by_device = segments.get("by_device", [])
-    if by_device:
+    if not by_device:
+        lines.append("By Device: no device data")
+    else:
         lines.append("By Device:")
+        rows = [fixed_row([("Device", 10, "l"), ("Sess", 6, "r"), ("Shr%", 5, "r")])]
         for d in by_device:
-            lines.append(f"{d['device']}: {fmt_pct(d['share'])}")
+            rows.append(fixed_row([(d["device"], 10, "l"), (fmt_num(d["sessions"]), 6, "r"), (fmt_pct(d["share"], 0), 5, "r")]))
+        lines.append(code_block(rows))
 
     return "\n".join(lines)

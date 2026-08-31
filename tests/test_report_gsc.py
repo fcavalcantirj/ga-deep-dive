@@ -32,7 +32,31 @@ def test_gsc_full_shows_striking_distance():
 
 def test_gsc_telegram_shows_totals():
     output = report_gsc.gsc_telegram(AVAILABLE_DATA)
-    assert "how to deploy a repo" in output
+    assert "43" in output
+    assert "9.9" in output
+
+
+def test_gsc_telegram_shows_top_queries():
+    output = report_gsc.gsc_telegram(AVAILABLE_DATA)
+    assert "how to de" in output  # query column truncates to fit
+
+
+def test_gsc_telegram_shows_striking_distance():
+    output = report_gsc.gsc_telegram(AVAILABLE_DATA)
+    assert "**🌐 SEARCH CONSOLE**" in output
+    assert "🎯 Striking Distance:" in output
+    assert "esp-atlas a" in output  # query column truncates to fit
+
+
+def test_gsc_telegram_table_rows_stay_within_phone_width():
+    output = report_gsc.gsc_telegram(AVAILABLE_DATA)
+    in_block = False
+    for line in output.splitlines():
+        if line.strip() == "```":
+            in_block = not in_block
+            continue
+        if in_block:
+            assert len(line) <= 30, f"line exceeds 30 cols: {line!r}"
 
 
 def test_gsc_full_no_query_data_keeps_header():
@@ -40,6 +64,15 @@ def test_gsc_full_no_query_data_keeps_header():
     output = report_gsc.gsc_full(data)
     assert "Top Queries" in output
     assert "no query data" in output
+
+
+def test_gsc_telegram_no_query_data_keeps_header():
+    data = {"property": "esp-atlas", "gsc": {"available": True, "totals": {}, "top_queries": [], "striking_distance": []}}
+    output = report_gsc.gsc_telegram(data)
+    assert "Top Queries:" in output
+    assert "no query data" in output
+    assert "🎯 Striking Distance:" in output
+    assert "none" in output
 
 
 # ---- no site configured -----------------------------------------------------------
@@ -93,3 +126,20 @@ def test_gsc_telegram_caps_top_queries_at_ten():
     output = report_gsc.gsc_telegram(MANY_QUERIES_DATA)
     assert "query 9" in output
     assert "query 10" not in output
+
+
+MANY_STRIKING_DATA = {
+    "property": "esp-atlas",
+    "gsc": {
+        "available": True,
+        "totals": {"clicks": 100, "impressions": 1000, "ctr": 0.1, "avg_position": 5.0},
+        "top_queries": [],
+        "striking_distance": [{"query": f"striking {i}", "clicks": 1, "impressions": 500, "ctr": 0.01, "position": 12.0} for i in range(10)],
+    },
+}
+
+
+def test_gsc_telegram_caps_striking_distance_at_six():
+    output = report_gsc.gsc_telegram(MANY_STRIKING_DATA)
+    assert "striking 5" in output
+    assert "striking 6" not in output

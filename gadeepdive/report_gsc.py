@@ -7,9 +7,10 @@ has no `gsc_site` registered.
 
 from typing import Any, Dict
 
-from .format import fmt_num, fmt_pct, section_header_full, section_header_telegram
+from .format import code_block, fixed_row, fmt_num, fmt_pct, section_header_full, section_header_telegram
 
 TOP_QUERIES_DISPLAY_LIMIT = 10
+STRIKING_DISTANCE_TELEGRAM_LIMIT = 6
 
 
 def gsc_full(data: Dict[str, Any]) -> str:
@@ -63,21 +64,34 @@ def gsc_telegram(data: Dict[str, Any]) -> str:
         return "\n".join(lines)
 
     totals = gsc.get("totals", {})
-    lines.append(
-        f"Clicks: {fmt_num(totals.get('clicks', 0))}  Impressions: {fmt_num(totals.get('impressions', 0))}  "
-        f"CTR: {fmt_pct(totals.get('ctr', 0))}  Avg Pos: {totals.get('avg_position', 0):.1f}"
-    )
+    totals_rows = [
+        fixed_row([("Clicks", 11, "l"), (str(int(totals.get("clicks", 0) or 0)), 7, "r")]),
+        fixed_row([("Impressions", 11, "l"), (str(int(totals.get("impressions", 0) or 0)), 7, "r")]),
+        fixed_row([("CTR", 11, "l"), (fmt_pct(totals.get("ctr", 0)), 7, "r")]),
+        fixed_row([("Avg Pos", 11, "l"), (f"{totals.get('avg_position', 0):.1f}", 7, "r")]),
+    ]
+    lines.append(code_block(totals_rows))
 
     top_queries = gsc.get("top_queries", [])
-    if top_queries:
-        lines.append("Top Queries:")
+    lines.append("Top Queries:")
+    if not top_queries:
+        lines.append("no query data")
+    else:
+        rows = [fixed_row([("Query", 10, "l"), ("Clk", 5, "r"), ("Impr", 6, "r"), ("Pos", 4, "r")])]
         for q in top_queries[:TOP_QUERIES_DISPLAY_LIMIT]:
-            lines.append(f"{q['query']}: {fmt_num(q['clicks'])} clicks, pos {q['position']:.1f}")
+            rows.append(
+                fixed_row([(q["query"], 10, "l"), (fmt_num(q["clicks"]), 5, "r"), (fmt_num(q["impressions"]), 6, "r"), (f"{q['position']:.1f}", 4, "r")])
+            )
+        lines.append(code_block(rows))
 
     striking = gsc.get("striking_distance", [])
-    if striking:
-        lines.append("🎯 Striking Distance:")
-        for q in striking:
-            lines.append(f"{q['query']}: pos {q['position']:.1f}, {fmt_num(q['impressions'])} impr, {fmt_pct(q['ctr'])} CTR")
+    lines.append("🎯 Striking Distance:")
+    if not striking:
+        lines.append("none")
+    else:
+        rows = [fixed_row([("Query", 12, "l"), ("Pos", 4, "r"), ("Impr", 6, "r")])]
+        for q in striking[:STRIKING_DISTANCE_TELEGRAM_LIMIT]:
+            rows.append(fixed_row([(q["query"], 12, "l"), (f"{q['position']:.1f}", 4, "r"), (fmt_num(q["impressions"]), 6, "r")]))
+        lines.append(code_block(rows))
 
     return "\n".join(lines)

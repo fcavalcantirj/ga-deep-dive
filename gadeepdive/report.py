@@ -10,13 +10,13 @@ Three render modes:
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import report_activity, report_content, report_gsc, report_part2, report_tech, report_traffic
-from .format import BOX_WIDTH, bar, box, delta_arrow, fmt_num, fmt_pct, fmt_value
+from .format import BOX_WIDTH, bar, box, code_block, delta_arrow, fixed_row, fmt_num, fmt_pct, fmt_value
 from .format import part_label_full as _part_label_full
-from .format import part_label_telegram as _part_label_telegram
 from .format import section_header_full as _section_header_full
 from .format import section_header_telegram as _section_header_telegram
 from .format import sorted_scores as _sorted_scores
 from .format import status_icon as _status_icon
+from .format import telegram_delta as _telegram_delta
 
 EXEC_METRIC_SPECS: List[Tuple[str, str, bool, str]] = [
     ("Sessions", "sessions", False, "num"),
@@ -28,6 +28,20 @@ EXEC_METRIC_SPECS: List[Tuple[str, str, bool, str]] = [
     ("Avg Duration (s)", "averageSessionDuration", False, "duration"),
     ("Pages/Session", "screenPageViewsPerSession", False, "decimal"),
     ("Page Views", "screenPageViews", False, "num"),
+]
+
+# Short labels for the telegram code block — must stay <= 7 chars so the
+# `label(7) value(6) delta` row fits the 30-column budget.
+EXEC_METRIC_SPECS_TELEGRAM: List[Tuple[str, str, bool, str]] = [
+    ("sessions", "sessions", False, "num"),
+    ("users", "activeUsers", False, "num"),
+    ("new", "newUsers", False, "num"),
+    ("engaged", "engagedSessions", False, "num"),
+    ("views", "screenPageViews", False, "num"),
+    ("engRate", "engagementRate", False, "pct"),
+    ("bounce", "bounceRate", True, "pct"),
+    ("avgDur", "averageSessionDuration", False, "duration"),
+    ("pg/sess", "screenPageViewsPerSession", False, "decimal"),
 ]
 
 HEALTH_LABELS = ["Growth", "Content", "Engagement", "Mobile", "Geo Diversity", "Retention", "Traffic Diversity"]
@@ -87,6 +101,56 @@ def _activity_lines(data: Dict[str, Any]) -> List[str]:
     if dau_wau is not None and dau_mau is not None:
         lines.append(f"Stickiness: DAU/WAU={fmt_pct(dau_wau)}  DAU/MAU={fmt_pct(dau_mau)}")
     return lines
+
+
+# ---- telegram-only row builders (phone-width code blocks) ---------------------
+
+
+def _exec_summary_telegram_lines(data: Dict[str, Any]) -> List[str]:
+    current = data["executive"]["current"]
+    previous = data["executive"]["previous"]
+    lines = []
+    for label, key, reverse, kind in EXEC_METRIC_SPECS_TELEGRAM:
+        curr_value = current.get(key, 0)
+        prev_value = previous.get(key)
+        row = fixed_row([(label, 8, "l"), (fmt_value(curr_value, kind), 6, "r")])
+        lines.append(f"{row} {_telegram_delta(curr_value, prev_value, reverse)}")
+    return lines
+
+
+def _activity_telegram_lines(data: Dict[str, Any]) -> List[str]:
+    activity = data["activity"]
+    dau = int(activity.get("active1DayUsers", 0) or 0)
+    wau = int(activity.get("active7DayUsers", 0) or 0)
+    mau = int(activity.get("active28DayUsers", 0) or 0)
+    lines = [
+        fixed_row([("DAU", 7, "l"), (f"{dau:,}", 8, "r")]),
+        fixed_row([("WAU", 7, "l"), (f"{wau:,}", 8, "r")]),
+        fixed_row([("MAU", 7, "l"), (f"{mau:,}", 8, "r")]),
+    ]
+    dau_wau = activity.get("dauPerWau")
+    dau_mau = activity.get("dauPerMau")
+    if dau_wau is not None and dau_mau is not None:
+        lines.append(fixed_row([("DAU/WAU", 7, "l"), (fmt_pct(dau_wau, 0), 8, "r")]))
+        lines.append(fixed_row([("DAU/MAU", 7, "l"), (fmt_pct(dau_mau, 0), 8, "r")]))
+    return lines
+
+
+def _health_telegram_lines(data: Dict[str, Any]) -> List[str]:
+    lines = []
+    for label, score in _sorted_scores(data["health"]["scores"]):
+        if score is None:
+            lines.append(fixed_row([(label, 12, "l"), ("n/a", 3, "r")]))
+        else:
+            lines.append(fixed_row([(label, 12, "l"), (str(score), 3, "r"), (bar(score, 100, 10), 10, "l")]))
+    return lines
+
+
+def _health_overall_line(data: Dict[str, Any]) -> str:
+    health = data["health"]
+    overall = health["overall"]
+    overall_str = f"{overall}/100" if overall is not None else "N/A"
+    return f"🎯 Overall: {overall_str} (Grade {health['grade']})"
 
 
 # ---- full ANSI mode -----------------------------------------------------------
@@ -150,31 +214,23 @@ def render_full(data: Dict[str, Any]) -> str:
 
 
 def render_telegram(data: Dict[str, Any]) -> str:
-    lines = list(_top_banner_lines(data))
-    lines.append(_part_label_telegram("PART 1: EXECUTIVE SUMMARY (V3)"))
-    lines += _banner_lines(data)
-    lines.append("")
+    """Phone-width Markdown variant: bold `**emoji TITLE**` section headers,
+    every table/bar chart fenced in a ```code block``` (<=30 cols wide) so
+    columns stay aligned with no horizontal scroll, everything else as
+    plain Markdown lines. No box-art, no ANSI."""
+    lines = [f"**🏴‍☠️ {data['property'].upper()}**"]
+    lines.append(f"Generated: {data['generated_at']}")
     lines.append(_live_now_line(data))
 
     lines.append(_section_header_telegram("EXECUTIVE SUMMARY", "📊"))
-    for row in _exec_summary_rows(data):
-        prev = "" if row["previous_str"] == "—" else f" (prev {row['previous_str']})"
-        lines.append(f"{row['label']}: {row['current_str']}{prev} {row['change']}")
+    lines.append(code_block(_exec_summary_telegram_lines(data)))
 
-    lines.append("\n📈 User Activity:")
-    for activity_line in _activity_lines(data):
-        lines.append(activity_line)
+    lines.append(_section_header_telegram("USER ACTIVITY", "📈"))
+    lines.append(code_block(_activity_telegram_lines(data)))
 
-    lines.append(_section_header_telegram("HEALTH DASHBOARD", "🏥"))
-    health = data["health"]
-    for label, score in _sorted_scores(health["scores"]):
-        if score is None:
-            lines.append(f"⏳ {label}: no data yet")
-        else:
-            lines.append(f"{_status_icon(score)} {label}: {score}/100")
-    overall = health["overall"]
-    overall_str = f"{overall}/100" if overall is not None else "N/A"
-    lines.append(f"🎯 OVERALL: {overall_str} (Grade {health['grade']})")
+    lines.append(_section_header_telegram("HEALTH", "🏥"))
+    lines.append(code_block(_health_telegram_lines(data)))
+    lines.append(_health_overall_line(data))
 
     lines.append(report_traffic.acquisition_telegram(data))
     lines.append(report_traffic.geography_telegram(data))
@@ -183,20 +239,17 @@ def render_telegram(data: Dict[str, Any]) -> str:
     lines.append(report_activity.events_telegram(data))
     lines.append(report_activity.time_patterns_telegram(data))
     lines.append(report_tech.technology_telegram(data))
-    lines.append(report_tech.insights_telegram(data))
-
-    lines.append(_part_label_telegram("PART 2: THE FULL MONTY (V4)"))
     lines.append(report_part2.scroll_depth_telegram(data))
     lines.append(report_part2.user_flow_telegram(data))
+    lines.append(report_part2.mobile_devices_telegram(data))
     lines.append(report_part2.audiences_telegram(data))
     lines.append(report_part2.hourly_performance_telegram(data))
-    lines.append(report_part2.acquisition_over_time_telegram(data))
-    lines.append(report_part2.mobile_devices_telegram(data))
-    lines.append(report_part2.full_monty_complete_telegram(data))
 
     gsc_section = report_gsc.gsc_telegram(data)
     if gsc_section:
         lines.append(gsc_section)
+
+    lines.append(report_tech.insights_telegram(data))
 
     return "\n".join(lines)
 

@@ -72,6 +72,20 @@ def test_scroll_depth_telegram_no_box_art():
         assert box_char not in output
 
 
+def test_scroll_depth_telegram_is_bold_title_with_code_block_table():
+    output = report_part2.scroll_depth_telegram(DATA)
+    assert "**📜 SCROLL DEPTH**" in output
+    assert "```" in output
+    assert "90%" in output
+
+
+def test_scroll_depth_telegram_empty_shows_no_data():
+    data = {**DATA, "scroll_depth": {"distribution": [], "total_events": 0, "top_pages": []}}
+    output = report_part2.scroll_depth_telegram(data)
+    assert "no scroll data" in output
+    assert "no page completion data" in output
+
+
 # ---- user flow ---------------------------------------------------------------------
 
 
@@ -84,6 +98,19 @@ def test_user_flow_full_shows_entries_and_bounce():
 def test_user_flow_full_empty_message():
     data = {**DATA, "user_flow": {"entries": []}}
     output = report_part2.user_flow_full(data)
+    assert "no entry point data" in output
+
+
+def test_user_flow_telegram_is_bold_title_with_code_block_table():
+    output = report_part2.user_flow_telegram(DATA)
+    assert "**🚪 ENTRY POINTS**" in output
+    assert "```" in output
+    assert "50%" in output
+
+
+def test_user_flow_telegram_empty_message():
+    data = {**DATA, "user_flow": {"entries": []}}
+    output = report_part2.user_flow_telegram(data)
     assert "no entry point data" in output
 
 
@@ -104,7 +131,14 @@ def test_audiences_full_empty_state_keeps_header():
 def test_audiences_telegram_empty_state():
     data = {**DATA, "audiences": {"audiences": []}}
     output = report_part2.audiences_telegram(data)
-    assert "No custom audiences configured" in output
+    assert "none configured" in output
+
+
+def test_audiences_telegram_shows_audience_row():
+    output = report_part2.audiences_telegram(DATA)
+    assert "**🎯 GA4 AUDIENCES**" in output
+    assert "```" in output
+    assert "55%" in output
 
 
 # ---- hourly performance ----------------------------------------------------------
@@ -119,16 +153,48 @@ def test_hourly_performance_full_marks_best_hour():
     assert "← BEST" not in other_line
 
 
-def test_hourly_performance_telegram_marks_best_hour():
-    output = report_part2.hourly_performance_telegram(DATA)
-    lines = output.splitlines()
-    best_line = next(l for l in lines if "21:00" in l)
-    assert "← BEST" in best_line
-
-
 def test_hourly_performance_full_no_data_message():
     data = {**DATA, "hourly_performance": {"hours": [], "best_hour": None}}
     output = report_part2.hourly_performance_full(data)
+    assert "no hourly data" in output
+
+
+# ---- peak hours (telegram) ---------------------------------------------------------
+
+
+def test_hourly_performance_telegram_shows_peak_hours_title():
+    output = report_part2.hourly_performance_telegram(DATA)
+    assert "**🕐 PEAK HOURS**" in output
+    assert "```" in output
+
+
+def test_hourly_performance_telegram_shows_top_three_by_sessions():
+    # HOURLY_DATA sessions: hour 3->5, hour 9->100, hour 21->50 — top 3 is all of them,
+    # sorted by session volume (21 has more sessions than 3, so it outranks it).
+    output = report_part2.hourly_performance_telegram(DATA)
+    lines = [line for line in output.splitlines() if ":00" in line]
+    assert len(lines) == 3
+    assert lines[0].startswith("09:00")  # 100 sessions — highest
+    assert lines[1].startswith("21:00")  # 50 sessions
+    assert lines[2].startswith("03:00")  # 5 sessions — lowest of the three
+
+
+def test_hourly_performance_telegram_caps_at_top_three():
+    many_hours_data = {
+        **DATA,
+        "hourly_performance": {
+            "hours": [{"hour": h, "sessions": 100 - h, "engagement_rate": 0.5} for h in range(10)],
+            "best_hour": 0,
+        },
+    }
+    output = report_part2.hourly_performance_telegram(many_hours_data)
+    lines = [line for line in output.splitlines() if ":00" in line]
+    assert len(lines) == 3
+
+
+def test_hourly_performance_telegram_no_data_message():
+    data = {**DATA, "hourly_performance": {"hours": [], "best_hour": None}}
+    output = report_part2.hourly_performance_telegram(data)
     assert "no hourly data" in output
 
 
@@ -158,7 +224,14 @@ def test_mobile_devices_full_no_data_message():
 def test_mobile_devices_telegram_no_data_message():
     data = {**DATA, "mobile_devices": {"models": []}}
     output = report_part2.mobile_devices_telegram(data)
-    assert "No mobile device data" in output
+    assert "no mobile device data" in output
+
+
+def test_mobile_devices_telegram_shows_models():
+    output = report_part2.mobile_devices_telegram(DATA)
+    assert "**📱 MOBILE DEVICES**" in output
+    assert "```" in output
+    assert "iPhone 16" in output
 
 
 # ---- full monty complete -----------------------------------------------------------
@@ -200,7 +273,8 @@ def test_user_flow_full_caps_at_ten():
     assert "/page-10" not in output
 
 
-def test_user_flow_telegram_caps_at_ten():
+def test_user_flow_telegram_caps_at_six():
     output = report_part2.user_flow_telegram(MANY_ENTRIES_DATA)
-    assert "/page-9" in output
-    assert "/page-10" not in output
+    # entries: /page-0 .. /page-14, sessions descending — only the first six survive.
+    assert "/page-5" in output
+    assert "/page-6" not in output

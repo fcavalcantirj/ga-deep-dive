@@ -56,6 +56,37 @@ def test_content_telegram_has_no_box_art():
     assert "docs" in output
 
 
+def test_content_telegram_is_bold_title_with_code_block_table():
+    output = report_content.content_telegram(DATA)
+    assert "**📄 CONTENT**" in output
+    assert "```" in output
+
+
+def test_content_telegram_views_and_users_are_ints_not_floats():
+    output = report_content.content_telegram(DATA)
+    assert "700" in output
+    assert "700.0" not in output
+    assert "450" in output
+    assert "450.0" not in output
+
+
+def test_content_telegram_trending_multiplies_ratio_to_true_percent():
+    output = report_content.content_telegram(DATA)
+    assert "+400%" in output
+
+
+def test_content_telegram_problem_pages_shows_bounce_percent():
+    output = report_content.content_telegram(DATA)
+    assert "100%" in output
+
+
+def test_content_telegram_empty_shows_no_data():
+    output = report_content.content_telegram(EMPTY_DATA)
+    assert "no content data" in output
+    assert "no WoW gainers" in output
+    assert "none" in output
+
+
 # ---- user segments --------------------------------------------------------------------
 
 
@@ -79,3 +110,16 @@ def test_user_segments_telegram_has_no_box_art():
     for box_char in ("╔", "╗", "╚", "╝", "║"):
         assert box_char not in output
     assert "desktop" in output
+
+
+def test_user_segments_telegram_is_bold_title_with_code_block_table():
+    output = report_content.user_segments_telegram(DATA)
+    assert "**👤 USER SEGMENTS**" in output
+    assert "```" in output
+    assert "returning" in output
+
+
+def test_user_segments_telegram_empty_shows_no_data():
+    output = report_content.user_segments_telegram(EMPTY_DATA)
+    assert "no segment data" in output
+    assert "By Device: no device data" in output
