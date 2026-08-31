@@ -143,8 +143,48 @@ FULL_DATA = {
             {"name": "wizard_results", "count": 250},
         ]
     },
+    "scroll_depth": {
+        "distribution": [
+            {"depth": "25", "count": 3200, "share": 0.80},
+            {"depth": "50", "count": 2400, "share": 0.60},
+            {"depth": "75", "count": 1600, "share": 0.40},
+            {"depth": "90", "count": 900, "share": 0.22},
+            {"depth": "100", "count": 500, "share": 0.12},
+        ],
+        "total_events": 4000,
+        "top_pages": [
+            {"path": "/docs/quickstart", "completion_rate": 0.62},
+            {"path": "/blog/launch", "completion_rate": 0.48},
+            {"path": "/pricing", "completion_rate": 0.30},
+        ],
+    },
+    "user_flow": {
+        "entries": [
+            {"path": "/docs/quickstart", "entries": 900, "bounce_pct": 0.22},
+            {"path": "/", "entries": 700, "bounce_pct": 0.35},
+            {"path": "/blog/launch", "entries": 300, "bounce_pct": 0.48},
+        ],
+    },
+    "audiences": {
+        "audiences": [
+            {"name": "Power Users", "users": 400, "sessions": 900, "engagement_pct": 0.72},
+            {"name": "Trial Signups", "users": 150, "sessions": 300, "engagement_pct": 0.55},
+        ],
+    },
+    "mobile_devices": {
+        "models": [
+            {"model": "iPhone 15", "sessions": 500},
+            {"model": "Pixel 8", "sessions": 220},
+            {"model": "Galaxy S23", "sessions": 180},
+        ],
+    },
     "gsc": {
         "available": True,
+        "totals": {"clicks": 5200, "impressions": 84000, "ctr": 0.062, "avg_position": 14.3},
+        "top_queries": [
+            {"query": "ga deep dive skill", "clicks": 900, "impressions": 12000, "ctr": 0.075, "position": 6.2},
+            {"query": "repo atlas onboarding", "clicks": 400, "impressions": 8000, "ctr": 0.05, "position": 11.4},
+        ],
         "striking_distance": [
             {"query": "how to deploy a repo to production", "impressions": 4000, "position": 9.2},
             {"query": "ga4 deep dive skill setup guide", "impressions": 3000, "position": 12.1},
