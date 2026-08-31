@@ -1,0 +1,15 @@
+{
+  "esp-atlas": {
+    "ga4_property_id": "551132215",
+    "gsc_site": "sc-domain:esp-atlas.com"
+  },
+  "abecmed": {
+    "ga4_property_id": "291040306"
+  },
+  "solvr": {
+    "ga4_property_id": "523300499"
+  },
+  "sonus": {
+    "ga4_property_id": "517562144"
+  }
+}
