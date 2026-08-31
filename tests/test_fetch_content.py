@@ -112,3 +112,12 @@ def test_content_empty_backend_returns_empty_sections():
     backend = _backend()
     result = fetch_content.content(backend, days=7)
     assert result == {"sections": [], "trending_up": [], "problem_pages": []}
+
+
+# ---- blank labels -------------------------------------------------------------------
+
+
+def test_problem_pages_blank_landing_page_gets_direct_entry_label():
+    backend = _backend(content_landing=[{"landingPage": "", "sessions": 20, "bounceRate": 1.0}])
+    result = fetch_content.content(backend, days=7)
+    assert result["problem_pages"][0]["path"] == "(direct entry)"

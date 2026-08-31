@@ -36,3 +36,18 @@ def test_technology_empty_backend_returns_empty_lists():
     backend = _backend()
     result = fetch_technology.technology(backend, days=7)
     assert result == {"browsers": [], "resolutions": []}
+
+
+# ---- blank labels -------------------------------------------------------------------
+
+
+def test_browser_blank_name_gets_not_set_label():
+    backend = _backend(tech_browser=[{"browser": "", "sessions": 10, "engagedSessions": 5}])
+    result = fetch_technology.technology(backend, days=7)
+    assert result["browsers"][0]["name"] == "(not set)"
+
+
+def test_resolution_blank_value_gets_not_set_label():
+    backend = _backend(tech_resolution=[{"screenResolution": "", "sessions": 10}])
+    result = fetch_technology.technology(backend, days=7)
+    assert result["resolutions"][0]["resolution"] == "(not set)"

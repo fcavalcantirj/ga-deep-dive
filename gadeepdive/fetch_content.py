@@ -5,7 +5,7 @@ week-over-week trending pages, and problem (high-bounce landing) pages.
 from typing import Any, Dict, List
 
 from .backends.base import Backend
-from .fetch_util import order_by_metric
+from .fetch_util import blank_label, order_by_metric
 
 PAGE_METRICS = ["screenPageViews", "activeUsers", "engagementRate"]
 LANDING_METRICS = ["sessions", "bounceRate"]
@@ -78,7 +78,11 @@ def _wow_trending(compare_rows: List[Dict[str, Any]], top_n: int = 5) -> List[Di
 
 def _problem_pages(landing_rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     problems = [
-        {"path": row.get("landingPage", "/"), "sessions": row.get("sessions", 0), "bounce_pct": float(row.get("bounceRate", 0) or 0)}
+        {
+            "path": blank_label(row.get("landingPage"), "(direct entry)"),
+            "sessions": row.get("sessions", 0),
+            "bounce_pct": float(row.get("bounceRate", 0) or 0),
+        }
         for row in landing_rows
         if float(row.get("bounceRate", 0) or 0) >= PROBLEM_PAGE_BOUNCE_THRESHOLD
     ]

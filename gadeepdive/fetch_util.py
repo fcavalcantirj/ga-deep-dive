@@ -21,3 +21,10 @@ def total_of(rows: List[Dict[str, Any]], key: str) -> float:
 
 def order_by_metric(metric_name: str, desc: bool = True) -> List[Dict[str, Any]]:
     return [{"metric": {"metricName": metric_name}, "desc": desc}]
+
+
+def blank_label(value: Optional[str], fallback: str = "(not set)") -> str:
+    """Render a readable label for a GA4/GSC dimension value that may be
+    `None` or an empty string (both are distinct from the literal `"(not
+    set)"` GA4 sometimes sends, which passes through unchanged)."""
+    return value if value else fallback
