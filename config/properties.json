@@ -1,7 +1,13 @@
 {
   "esp-atlas": {
     "ga4_property_id": "551132215",
-    "gsc_site": "sc-domain:esp-atlas.com"
+    "gsc_site": "sc-domain:esp-atlas.com",
+    "goal": {
+      "target": 1000000,
+      "date": "2026-11-27",
+      "metric": "totalUsers",
+      "label": "1,000,000 users"
+    }
   },
   "abecmed": {
     "ga4_property_id": "291040306"

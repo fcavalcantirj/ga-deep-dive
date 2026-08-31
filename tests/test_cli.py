@@ -214,6 +214,43 @@ def test_main_dashboard_writes_png_without_delivering(monkeypatch, capsys, tmp_p
     assert f"Dashboard written to {output_path}." in captured.err
 
 
+def test_main_wires_the_registered_goal_into_the_dashboard_data(monkeypatch, tmp_path):
+    _install_fake_backend(monkeypatch)
+    seen = {}
+
+    def _fake_compose_dashboard(data, property_name, days, output_path):
+        seen["goal"] = data.get("goal")
+        return output_path
+
+    monkeypatch.setattr(cli.charts, "compose_dashboard", _fake_compose_dashboard)
+    output_path = str(tmp_path / "out.png")
+
+    cli.main(["esp-atlas", "--dashboard", output_path, "--json"])
+
+    assert seen["goal"] == {
+        "target": 1000000,
+        "date": "2026-11-27",
+        "metric": "totalUsers",
+        "label": "1,000,000 users",
+    }
+
+
+def test_main_wires_none_goal_for_properties_without_one(monkeypatch, tmp_path):
+    _install_fake_backend(monkeypatch)
+    seen = {}
+
+    def _fake_compose_dashboard(data, property_name, days, output_path):
+        seen["goal"] = data.get("goal")
+        return output_path
+
+    monkeypatch.setattr(cli.charts, "compose_dashboard", _fake_compose_dashboard)
+    output_path = str(tmp_path / "out.png")
+
+    cli.main(["abecmed", "--dashboard", output_path, "--json"])
+
+    assert seen["goal"] is None
+
+
 def test_main_dashboard_and_deliver_together(monkeypatch, tmp_path):
     _install_fake_backend(monkeypatch)
     sent = []

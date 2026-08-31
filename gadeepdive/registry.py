@@ -1,7 +1,9 @@
-"""Property registry: name -> {ga4_property_id, gsc_site}.
+"""Property registry: name -> {ga4_property_id, gsc_site, goal?}.
 
 Registry is data (config/properties.json), not code — adding a property is a
-config edit, never a code change.
+config edit, never a code change. `goal` is optional:
+{"target": number, "date": "YYYY-MM-DD", "metric": str, "label": str} — the
+north-star pacing panel (charts.py) renders only for properties that have one.
 """
 
 import json
@@ -41,4 +43,5 @@ def get_property(name: str, properties: Optional[Dict[str, dict]] = None) -> Dic
     return {
         "ga4_property_id": entry["ga4_property_id"],
         "gsc_site": entry.get("gsc_site"),
+        "goal": entry.get("goal"),
     }
