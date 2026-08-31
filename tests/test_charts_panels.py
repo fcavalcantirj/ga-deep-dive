@@ -353,3 +353,162 @@ def test_draw_technology_empty_state_when_missing():
         assert any("No resolution data available" in t for t in texts)
     finally:
         plt.close(fig)
+
+
+# ---- PART 2 parity panels ------------------------------------------------------------
+
+
+def test_compose_dashboard_renders_full_part2_and_gsc_data_without_crashing(tmp_path):
+    output_path = str(tmp_path / "part2_full.png")
+    charts.compose_dashboard(_sample_data(), "repo-atlas", 7, output_path)
+    assert os.path.getsize(output_path) > 0
+
+
+# ---- scroll depth: distribution + page completion --------------------------------------
+
+
+def test_draw_scroll_depth_renders_distribution_and_page_completion_bars():
+    scroll_depth = {
+        "distribution": [{"depth": "25", "count": 3200, "share": 0.80}],
+        "total_events": 4000,
+        "top_pages": [{"path": "/docs/quickstart", "completion_rate": 0.62}],
+    }
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_scroll_depth(fig, cell, scroll_depth)
+        texts = _all_texts(fig)
+        assert any("25%" in t for t in texts)
+        assert any("/docs/quickstart" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_scroll_depth_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_scroll_depth(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("No scroll data available" in t for t in texts)
+        assert any("No page completion data available" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+# ---- user flow: entry points ------------------------------------------------------------
+
+
+def test_draw_entry_points_renders_bars_with_bounce_pct():
+    user_flow = {"entries": [{"path": "/docs/quickstart", "entries": 900, "bounce_pct": 0.22}]}
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_entry_points(fig, cell, user_flow)
+        texts = _all_texts(fig)
+        assert any("/docs/quickstart" in t for t in texts)
+        assert any("bounce" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_entry_points_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_entry_points(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("No entry point data available" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+# ---- GA4 audiences ------------------------------------------------------------------------
+
+
+def test_draw_audiences_renders_bars():
+    audiences = {"audiences": [{"name": "Power Users", "users": 400, "sessions": 900, "engagement_pct": 0.72}]}
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_audiences(fig, cell, audiences)
+        texts = _all_texts(fig)
+        assert any("Power Users" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_audiences_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_audiences(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("No custom audiences configured" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+# ---- mobile devices ------------------------------------------------------------------------
+
+
+def test_draw_mobile_devices_renders_bars():
+    mobile_devices = {"models": [{"model": "iPhone 15", "sessions": 500}]}
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_mobile_devices(fig, cell, mobile_devices)
+        texts = _all_texts(fig)
+        assert any("iPhone 15" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_mobile_devices_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_mobile_devices(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("No mobile device data available" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+# ---- Search Console: totals chips + top queries table --------------------------------------
+
+
+def test_draw_gsc_totals_renders_stat_chips():
+    gsc = {"totals": {"clicks": 5200, "impressions": 84000, "ctr": 0.062, "avg_position": 14.3}}
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_gsc_totals(fig, cell, gsc)
+        texts = _all_texts(fig)
+        for label in ["Clicks", "Impressions", "CTR", "Avg Position"]:
+            assert label.upper() in texts, f"missing GSC totals chip {label}"
+        assert any("5.2K" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_gsc_totals_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_gsc_totals(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("No Search Console totals available" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_gsc_top_queries_renders_table_rows():
+    gsc = {"top_queries": [{"query": "ga deep dive skill", "clicks": 900, "impressions": 12000, "ctr": 0.075, "position": 6.2}]}
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_gsc_top_queries(fig, cell, gsc)
+        texts = _all_texts(fig)
+        assert any("ga deep dive skill" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_gsc_top_queries_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_gsc_top_queries(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("no query data" in t for t in texts)
+    finally:
+        plt.close(fig)
