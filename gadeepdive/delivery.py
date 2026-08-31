@@ -1,10 +1,13 @@
 """Report delivery channels. Telegram only, stdlib `urllib` — no third-party
 deps, no metered API keys (golden rule). Credentials come from
-`TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` env vars, never hardcoded.
+`TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` env vars (with `TELEGRAM_HOME_CHANNEL`
+as a fallback chat id), never hardcoded.
 """
 
 import json
+import mimetypes
 import os
+import uuid
 import urllib.error
 import urllib.request
 from typing import Callable, Optional
@@ -18,11 +21,17 @@ class DeliveryError(RuntimeError):
     channel's API rejected/failed the send."""
 
 
+def _telegram_chat_id() -> Optional[str]:
+    return os.environ.get("TELEGRAM_CHAT_ID") or os.environ.get("TELEGRAM_HOME_CHANNEL")
+
+
 def _telegram_credentials():
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    chat_id = _telegram_chat_id()
     if not token or not chat_id:
-        raise DeliveryError("missing TELEGRAM_BOT_TOKEN and/or TELEGRAM_CHAT_ID environment variables")
+        raise DeliveryError(
+            "missing TELEGRAM_BOT_TOKEN and/or TELEGRAM_CHAT_ID/TELEGRAM_HOME_CHANNEL environment variables"
+        )
     return token, chat_id
 
 
@@ -54,6 +63,51 @@ def deliver_telegram(text: str, opener: Optional[Callable] = None) -> None:
         body = _post_json(url, {"chat_id": chat_id, "text": chunk}, opener)
         if not body.get("ok"):
             raise DeliveryError(f"Telegram API rejected the message: {body}")
+
+
+def _multipart_body(fields: dict, file_field: str, image_path: str, filename: str):
+    """Build a `multipart/form-data` body from plain-text fields plus one file
+    field, stdlib-only (no `requests`/`urllib3` dependency)."""
+    boundary = uuid.uuid4().hex
+    with open(image_path, "rb") as handle:
+        file_bytes = handle.read()
+    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+
+    parts = []
+    for name, value in fields.items():
+        parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n".encode("utf-8"))
+    parts.append(
+        (
+            f"--{boundary}\r\nContent-Disposition: form-data; name=\"{file_field}\"; filename=\"{filename}\"\r\n"
+            f"Content-Type: {content_type}\r\n\r\n"
+        ).encode("utf-8")
+    )
+    parts.append(file_bytes)
+    parts.append(f"\r\n--{boundary}--\r\n".encode("utf-8"))
+    return b"".join(parts), boundary
+
+
+def send_photo(image_path: str, caption: str = "", opener: Optional[Callable] = None) -> None:
+    """Send the PNG at `image_path` to Telegram via `sendPhoto`, stdlib
+    `urllib` multipart/form-data only.
+
+    Raises `DeliveryError` on missing credentials or a rejected/failed send.
+    """
+    token, chat_id = _telegram_credentials()
+    opener = opener or urllib.request.urlopen
+    url = f"{TELEGRAM_API_BASE}/bot{token}/sendPhoto"
+    filename = os.path.basename(image_path)
+    body, boundary = _multipart_body({"chat_id": chat_id, "caption": caption}, "photo", image_path, filename)
+    request = urllib.request.Request(
+        url, data=body, headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}, method="POST"
+    )
+    try:
+        with opener(request, timeout=30) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except urllib.error.URLError as exc:
+        raise DeliveryError(f"Telegram sendPhoto request failed: {exc}") from exc
+    if not result.get("ok"):
+        raise DeliveryError(f"Telegram API rejected the photo: {result}")
 
 
 DELIVERY_SENDERS = {"telegram": deliver_telegram}
