@@ -50,6 +50,35 @@ def executive_summary(backend: Backend, days: int) -> Dict[str, Dict[str, Any]]:
     }
 
 
+def northstar_totals(backend: Backend, metric: str = "totalUsers") -> Dict[str, float]:
+    """North-star pacing inputs: the goal metric's all-time cumulative total
+    plus a 28-day daily rate.
+
+    `current_total` is a single-row report pinned to an explicit lifetime
+    dateRange (2020-01-01 .. today) — GA4 has no running-total metric, so a
+    wide-enough fixed start date stands in for "since we started tracking".
+    `current_rate` is newUsers over the last complete 28 days (28daysAgo ..
+    yesterday), averaged per day.
+    """
+    total_rows = backend.run_report(
+        [],
+        [metric],
+        1,
+        extra={"row_key": "northstar_total", "date_ranges": [{"startDate": "2020-01-01", "endDate": "today"}]},
+    )
+    current_total = float(total_rows[0].get(metric, 0)) if total_rows else 0.0
+
+    rate_rows = backend.run_report(
+        [],
+        ["newUsers"],
+        28,
+        extra={"row_key": "northstar_rate", "date_ranges": [{"startDate": "28daysAgo", "endDate": "yesterday"}]},
+    )
+    new_users_28d = float(rate_rows[0].get("newUsers", 0)) if rate_rows else 0.0
+
+    return {"current_total": current_total, "current_rate": new_users_28d / 28}
+
+
 def user_activity(backend: Backend) -> Dict[str, Any]:
     """§3 User Activity — DAU/WAU/MAU + stickiness, as a POINT-IN-TIME
     snapshot for the last complete day.

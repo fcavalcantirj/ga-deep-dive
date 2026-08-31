@@ -251,6 +251,48 @@ def test_main_wires_none_goal_for_properties_without_one(monkeypatch, tmp_path):
     assert seen["goal"] is None
 
 
+def test_main_fetches_goal_totals_when_property_has_a_goal(monkeypatch, tmp_path):
+    _install_fake_backend(monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        cli.fetch,
+        "northstar_totals",
+        lambda backend, metric: calls.append(metric) or {"current_total": 153.0, "current_rate": 5.0},
+    )
+    seen = {}
+
+    def _fake_compose_dashboard(data, property_name, days, output_path):
+        seen["goal_totals"] = data.get("goal_totals")
+        return output_path
+
+    monkeypatch.setattr(cli.charts, "compose_dashboard", _fake_compose_dashboard)
+    output_path = str(tmp_path / "out.png")
+
+    cli.main(["esp-atlas", "--dashboard", output_path, "--json"])
+
+    assert calls == ["totalUsers"]
+    assert seen["goal_totals"] == {"current_total": 153.0, "current_rate": 5.0}
+
+
+def test_main_skips_goal_totals_fetch_when_property_has_no_goal(monkeypatch, tmp_path):
+    _install_fake_backend(monkeypatch)
+    calls = []
+    monkeypatch.setattr(cli.fetch, "northstar_totals", lambda backend, metric: calls.append(metric))
+    seen = {}
+
+    def _fake_compose_dashboard(data, property_name, days, output_path):
+        seen["goal_totals"] = data.get("goal_totals")
+        return output_path
+
+    monkeypatch.setattr(cli.charts, "compose_dashboard", _fake_compose_dashboard)
+    output_path = str(tmp_path / "out.png")
+
+    cli.main(["abecmed", "--dashboard", output_path, "--json"])
+
+    assert calls == []
+    assert seen["goal_totals"] is None
+
+
 def test_main_dashboard_and_deliver_together(monkeypatch, tmp_path):
     _install_fake_backend(monkeypatch)
     sent = []

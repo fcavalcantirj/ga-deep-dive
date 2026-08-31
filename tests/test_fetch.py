@@ -155,6 +155,59 @@ def test_user_activity_ignores_report_period_days_argument():
     assert "days" not in params
 
 
+# ---- northstar_totals ----------------------------------------------------------
+
+
+NORTHSTAR_DIM_ROWS = {
+    "northstar_total": [{"totalUsers": 153}],
+    "northstar_rate": [{"newUsers": 140}],
+}
+
+
+def test_northstar_totals_returns_current_total_and_rate():
+    backend = FakeBackend(dim_rows=NORTHSTAR_DIM_ROWS)
+    result = fetch.northstar_totals(backend, metric="totalUsers")
+    assert result == {"current_total": 153.0, "current_rate": 5.0}
+
+
+def test_northstar_totals_queries_an_explicit_all_time_date_range_single_row():
+    backend = FakeBackend(dim_rows=NORTHSTAR_DIM_ROWS)
+    fetch.northstar_totals(backend, metric="totalUsers")
+    total_call = next(c for c in backend.calls if c[4].get("row_key") == "northstar_total")
+    assert total_call[1] == []  # no dimensions — single row
+    assert total_call[2] == ["totalUsers"]
+    assert total_call[4]["date_ranges"] == [{"startDate": "2020-01-01", "endDate": "today"}]
+
+
+def test_northstar_totals_queries_newusers_over_the_last_28_days():
+    backend = FakeBackend(dim_rows=NORTHSTAR_DIM_ROWS)
+    fetch.northstar_totals(backend, metric="totalUsers")
+    rate_call = next(c for c in backend.calls if c[4].get("row_key") == "northstar_rate")
+    assert rate_call[1] == []
+    assert rate_call[2] == ["newUsers"]
+    assert rate_call[4]["date_ranges"] == [{"startDate": "28daysAgo", "endDate": "yesterday"}]
+
+
+def test_northstar_totals_defaults_to_zero_when_no_rows():
+    backend = FakeBackend()
+    result = fetch.northstar_totals(backend)
+    assert result == {"current_total": 0.0, "current_rate": 0.0}
+
+
+def test_northstar_totals_uses_the_given_metric_name():
+    backend = FakeBackend(dim_rows={"northstar_total": [{"activeUsers": 42}], "northstar_rate": [{"newUsers": 28}]})
+    result = fetch.northstar_totals(backend, metric="activeUsers")
+    assert result["current_total"] == 42.0
+    assert result["current_rate"] == 1.0
+
+
+def test_northstar_totals_defaults_metric_to_totalusers():
+    import inspect
+
+    params = inspect.signature(fetch.northstar_totals).parameters
+    assert params["metric"].default == "totalUsers"
+
+
 def test_user_activity_stickiness_never_exceeds_100_percent():
     # Realistic snapshot: DAU < WAU < MAU always holds for a single day.
     backend = FakeBackend(

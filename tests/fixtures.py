@@ -23,12 +23,13 @@ class FakeBackend:
     def run_report(self, dimensions, metrics, days, extra=None):
         extra = extra or {}
         self.calls.append(("run_report", dimensions, metrics, days, extra))
+        if "row_key" in extra:
+            return self.dim_rows.get(extra["row_key"], [])
         if extra.get("compare_previous") and not dimensions:
             return self.exec_rows
         if not dimensions:
             return [self.activity_row] if self.activity_row else []
-        key = extra.get("row_key", tuple(dimensions))
-        return self.dim_rows.get(key, [])
+        return self.dim_rows.get(tuple(dimensions), [])
 
     def run_realtime(self, metrics):
         self.calls.append(("run_realtime", metrics))
