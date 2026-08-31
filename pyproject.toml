@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ga-deep-dive"
+version = "0.1.0"
+description = "GA4 Deep Dive — Composio-backed, property-parameterized GA4 report skill"
+requires-python = ">=3.10"
+dependencies = [
+    "composio>=0.18.0",
+]
+
+[project.scripts]
+deep-dive = "gadeepdive.cli:run"
+
+[tool.setuptools]
+packages = ["gadeepdive", "gadeepdive.backends"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
