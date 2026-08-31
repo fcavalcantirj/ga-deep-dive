@@ -4,6 +4,59 @@ Comprehensive Google Analytics 4 property analysis — extracts EVERYTHING the A
 
 Built by Claudius for Solvr.
 
+## `deep-dive` — the Composio-backed command (recommended)
+
+The current, actively-maintained way to run a report. Auth is Composio OAuth by
+default — **no service-account key required**. The legacy `deep_dive_v3.py` /
+`deep_dive_v4.py` scripts below still work as a fallback (`--backend native`
+uses the same `google-analytics-data` OAuth flow they used) but are no longer
+where new work lands.
+
+```bash
+pip install -e .   # registers the `deep-dive` console script (see pyproject.toml)
+
+deep-dive <property> [--days N] [--json] [--no-gsc] [--no-telegram] \
+                      [--deliver telegram] [--backend composio|native]
+```
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `--days N` | 7 | Report period length |
+| `--json` | off | Machine-readable output, no ANSI art |
+| `--no-gsc` | off | Skip the Search Console section (included by default) |
+| `--no-telegram` | off | Skip the telegram-condensed variant printed after the full report |
+| `--deliver telegram` | off | Also send the telegram-variant report to Telegram (needs `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` env vars) |
+| `--backend composio\|native` | `composio` | Data source — Composio OAuth (default, no key file) or the native SDK |
+
+**Defaults are all-in; flags only subtract.** GSC and the telegram variant ship
+unless explicitly suppressed.
+
+### Property registry
+
+`<property>` resolves via `config/properties.json` (name → `{ga4_property_id,
+gsc_site}`). Adding a property is a config edit, not a code change:
+
+| name | ga4 property | gsc site |
+|------|--------------|----------|
+| esp-atlas | 551132215 | sc-domain:esp-atlas.com |
+| abecmed | 291040306 | — |
+| solvr | 523300499 | — |
+| sonus | 517562144 | — |
+
+### Weekly cron delivery
+
+`scripts/weekly_deepdive.py` is a thin cron entrypoint that runs `deep-dive`
+for one property and delivers it to Telegram:
+
+```bash
+0 9 * * 1 cd /path/to/ga-deep-dive && .venv/bin/python3 scripts/weekly_deepdive.py esp-atlas
+```
+
+See `SPEC.md` and `docs/oracle/GOLDEN-TARGET.md` for the full architecture and
+report structure contract.
+
+## Legacy scripts (deep_dive_v3 / v4)
+
 ## Features
 
 ### Scripts

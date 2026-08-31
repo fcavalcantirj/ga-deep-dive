@@ -21,6 +21,32 @@ triggers:
 
 **The Owner's War Room** — Everything GA4 can tell you about your product.
 
+## The `deep-dive` command (recommended)
+
+The Composio-backed command is the primary way to run a report now. It
+authenticates via **Composio OAuth by default — no service-account key
+needed**:
+
+```
+deep-dive <property> [--days N] [--json] [--no-gsc] [--no-telegram] \
+                      [--deliver telegram] [--backend composio|native]
+```
+
+- `<property>` resolves through the property registry (`config/properties.json`,
+  name → `{ga4_property_id, gsc_site}`) — adding a property is a config edit.
+- Defaults are all-in: GSC and the telegram-condensed variant ship unless you
+  pass `--no-gsc` / `--no-telegram`.
+- `--json` emits the same data machine-readable, skipping ANSI art.
+- `--deliver telegram` sends the telegram-variant report straight to Telegram
+  (reads `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` from the environment).
+- `--backend native` switches to the optional `google-analytics-data` SDK
+  OAuth flow instead of Composio, for environments without Composio access.
+
+For unattended weekly delivery, `scripts/weekly_deepdive.py <property>` wraps
+`deep-dive <property> --deliver telegram` for cron. The scripts below
+(`deep_dive_v3.py` / `deep_dive_v4.py`) are the earlier, still-functional
+generation this command replaces.
+
 ## What You Get
 
 | Script | Purpose |
