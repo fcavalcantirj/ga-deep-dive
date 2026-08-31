@@ -1,108 +1,9 @@
-import json
-
 import matplotlib.pyplot as plt
-import pytest
 from matplotlib.patches import FancyBboxPatch
 
 from gadeepdive import charts
 
-FULL_DATA = {
-    "property": "repo-atlas",
-    "days": 7,
-    "generated_at": "2026-08-31 12:00 UTC",
-    "executive": {
-        "current": {"sessions": 1570, "activeUsers": 960, "engagementRate": 0.512, "screenPageViews": 3770},
-        "previous": {"sessions": 980, "activeUsers": 700, "engagementRate": 0.40, "screenPageViews": 2500},
-    },
-    "health": {
-        "scores": {
-            "Growth": 82,
-            "Content": 55,
-            "Engagement": 51,
-            "Mobile": 38,
-            "Geo Diversity": 70,
-            "Retention": None,
-            "Traffic Diversity": 90,
-        },
-        "overall": 64,
-        "grade": "B",
-    },
-    "acquisition": {
-        "channels": [
-            {"name": "Organic Search", "sessions": 600},
-            {"name": "Direct", "sessions": 400},
-            {"name": "Referral", "sessions": 250},
-            {"name": "Social", "sessions": 150},
-            {"name": "Email", "sessions": 90},
-            {"name": "Paid Search", "sessions": 50},
-            {"name": "Display", "sessions": 20},
-            {"name": "Other", "sessions": 10},
-        ]
-    },
-    "geography": {
-        "countries": [
-            {"name": "United States", "sessions": 700},
-            {"name": "Brazil", "sessions": 300},
-            {"name": "Germany", "sessions": 200},
-            {"name": "India", "sessions": 150},
-            {"name": "United Kingdom", "sessions": 100},
-            {"name": "Canada", "sessions": 60},
-            {"name": "France", "sessions": 40},
-            {"name": "Japan", "sessions": 20},
-        ]
-    },
-    "acquisition_over_time": {
-        "daily": [
-            {"date": "08-25", "users": 100},
-            {"date": "08-26", "users": 140},
-            {"date": "08-27", "users": 90},
-            {"date": "08-28", "users": 200},
-            {"date": "08-29", "users": 160},
-            {"date": "08-30", "users": 180},
-            {"date": "08-31", "users": 220},
-        ]
-    },
-    "hourly_performance": {
-        "hours": [{"hour": h, "sessions": (h * 7) % 53 + 5, "engagement_rate": 0.3 + (h % 5) * 0.05} for h in range(24)],
-        "best_hour": 14,
-    },
-    "events": {
-        "events": [
-            {"name": "page_view", "count": 5000},
-            {"name": "example_click", "count": 1200},
-            {"name": "wizard_submit", "count": 400},
-            {"name": "wizard_results", "count": 250},
-        ]
-    },
-    "gsc": {
-        "available": True,
-        "striking_distance": [
-            {"query": "how to deploy a repo to production", "impressions": 4000, "position": 9.2},
-            {"query": "ga4 deep dive skill setup guide", "impressions": 3000, "position": 12.1},
-            {"query": "repo atlas onboarding checklist", "impressions": 1500, "position": 15.4},
-        ],
-    },
-    "insights": [
-        {"icon": "🟢", "message": "Sessions up 60% WoW", "action": "Double down on Organic Search"},
-        {"icon": "🚨", "message": "/promo/expired-campaign has a 100% bounce rate", "action": "Fix landing page"},
-        {"icon": "🔴", "message": "Low stickiness: DAU/MAU is only 6.0%", "action": "Run retention campaigns"},
-    ],
-}
-
-
-def _sample_data():
-    return json.loads(json.dumps(FULL_DATA))
-
-
-def _png_dimensions(path):
-    """Read width/height straight out of the PNG IHDR chunk — avoids pulling
-    in Pillow just for a test assertion."""
-    with open(path, "rb") as handle:
-        header = handle.read(24)
-    width = int.from_bytes(header[16:20], "big")
-    height = int.from_bytes(header[20:24], "big")
-    return width, height
-
+from .chart_fixtures import GOAL, _png_dimensions, _sample_data
 
 # ---- compose_dashboard: happy path ------------------------------------------------
 
@@ -345,8 +246,6 @@ def test_compose_caption_handles_empty_data_without_crashing():
 
 # ---- rounded bars ------------------------------------------------------------------
 
-GOAL = {"target": 1000000, "date": "2026-11-27", "metric": "totalUsers", "label": "1,000,000 users"}
-
 
 def _fresh_axis():
     fig = plt.figure()
@@ -545,3 +444,4 @@ def test_gsc_panel_uses_the_wider_label_budget(tmp_path, monkeypatch):
     charts.compose_dashboard(data, "repo-atlas", 7, str(tmp_path / "gsc_wide.png"))
     labels = [t.get_text() for t in captured["ax"].get_yticklabels()]
     assert "how to deploy a repo to production" in labels
+
