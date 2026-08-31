@@ -7,22 +7,20 @@ top queries, and a striking-distance quick-wins list. Gracefully returns
 from typing import Any, Dict
 
 from .backends.base import Backend
-from .fetch_util import safe_ratio, total_of
+from .fetch_util import blank_label, safe_ratio, total_of
 
-TOP_QUERIES_LIMIT = 10
 GSC_ROW_LIMIT = 100
 
 STRIKING_DISTANCE_MIN_POSITION = 8.0
 STRIKING_DISTANCE_MAX_POSITION = 20.0
-STRIKING_DISTANCE_MIN_IMPRESSIONS = 10
-STRIKING_DISTANCE_MAX_CTR = 0.02
+STRIKING_DISTANCE_MIN_IMPRESSIONS = 5
+STRIKING_DISTANCE_LIMIT = 10
 
 
 def _is_striking_distance(query: Dict[str, Any]) -> bool:
     return (
         STRIKING_DISTANCE_MIN_POSITION <= query["position"] <= STRIKING_DISTANCE_MAX_POSITION
         and query["impressions"] >= STRIKING_DISTANCE_MIN_IMPRESSIONS
-        and query["ctr"] < STRIKING_DISTANCE_MAX_CTR
     )
 
 
@@ -34,7 +32,7 @@ def gsc_report(backend: Backend, days: int, row_limit: int = GSC_ROW_LIMIT) -> D
     rows = backend.gsc_query(["query"], days, row_limit=row_limit)
     queries = [
         {
-            "query": row.get("query", "(not set)"),
+            "query": blank_label(row.get("query")),
             "clicks": float(row.get("clicks", 0) or 0),
             "impressions": float(row.get("impressions", 0) or 0),
             "ctr": float(row.get("ctr", 0) or 0),
@@ -54,7 +52,9 @@ def gsc_report(backend: Backend, days: int, row_limit: int = GSC_ROW_LIMIT) -> D
         "avg_position": safe_ratio(weighted_position, total_impressions),
     }
 
-    top_queries = sorted(queries, key=lambda q: q["clicks"], reverse=True)[:TOP_QUERIES_LIMIT]
-    striking_distance = sorted((q for q in queries if _is_striking_distance(q)), key=lambda q: q["impressions"], reverse=True)
+    top_queries = sorted(queries, key=lambda q: q["clicks"], reverse=True)
+    striking_distance = sorted((q for q in queries if _is_striking_distance(q)), key=lambda q: q["impressions"], reverse=True)[
+        :STRIKING_DISTANCE_LIMIT
+    ]
 
     return {"available": True, "totals": totals, "top_queries": top_queries, "striking_distance": striking_distance}
