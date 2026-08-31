@@ -9,6 +9,7 @@ so the section renderers can share these helpers without a circular import.
 from typing import Dict, List, Optional, Tuple
 
 BOX_WIDTH = 78
+TELEGRAM_WIDTH = 30
 
 
 def fmt_num(n: float) -> str:
@@ -104,12 +105,56 @@ def section_header_full(title: str, emoji: str) -> str:
 
 
 def section_header_telegram(title: str, emoji: str) -> str:
-    return f"\n{emoji} {title}"
+    return f"\n**{emoji} {title}**"
 
 
 def part_label_full(title: str) -> str:
     return f"\n{'▓' * 80}\n  {title}\n{'▓' * 80}"
 
 
-def part_label_telegram(title: str) -> str:
-    return f"\n=== {title} ==="
+# ---- telegram phone-width helpers (max 30 cols, code blocks for tables/bars) -------
+
+
+def truncate(text, width: int) -> str:
+    """Shorten `text` to fit `width` columns, marking the cut with `…`."""
+    text = str(text)
+    if len(text) <= width:
+        return text
+    if width <= 1:
+        return text[:width]
+    return text[: width - 1] + "…"
+
+
+def fixed_cell(text, width: int, align: str = "l") -> str:
+    """Truncate `text` to `width` then pad it so a row's total width is
+    deterministic regardless of the source field's real length."""
+    cell = truncate(text, width)
+    return cell.rjust(width) if align == "r" else cell.ljust(width)
+
+
+def fixed_row(cells: List[Tuple]) -> str:
+    """Build one code-block table row from `(text, width, align)` cells,
+    space-joined. Numbers are never truncated (only labels are) — pick
+    widths generous enough for the values a section can produce."""
+    return " ".join(fixed_cell(text, width, align) for text, width, align in cells).rstrip()
+
+
+def code_block(lines: List[str]) -> str:
+    """Wrap pre-formatted monospace `lines` (tables, bar charts) in a
+    Markdown code fence so columns stay aligned on a phone."""
+    body = "\n".join(lines)
+    return f"```\n{body}\n```"
+
+
+def telegram_delta(current: float, previous: Optional[float], reverse: bool = False) -> str:
+    """WoW change indicator for telegram mode: `🟢+231%` / `🔴-12%` — every
+    non-NEW change is colored by sign, no "mild change" middle ground like
+    `delta_arrow`'s full-mode ↑/↓. `reverse=True` means down is good."""
+    current = float(current or 0)
+    if not previous:
+        return "NEW" if current > 0 else "—"
+    change = (current - previous) / previous * 100
+    if reverse:
+        change = -change
+    icon = "🟢" if change >= 0 else "🔴"
+    return f"{icon}{change:+.0f}%"

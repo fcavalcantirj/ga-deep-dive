@@ -4,7 +4,10 @@ string out — no I/O, no clock. Mirrors `report.py`'s full/telegram split.
 
 from typing import Any, Dict
 
-from .format import fmt_num, fmt_pct, section_header_full, section_header_telegram
+from .format import code_block, fixed_row, fmt_num, fmt_pct, section_header_full, section_header_telegram
+
+BROWSERS_TELEGRAM_LIMIT = 6
+RESOLUTIONS_TELEGRAM_LIMIT = 5
 
 # ---- technology -----------------------------------------------------------------------
 
@@ -41,14 +44,20 @@ def technology_telegram(data: Dict[str, Any]) -> str:
     if not browsers:
         lines.append("no browser data")
     else:
-        for b in browsers:
-            lines.append(f"{b['name']}: {fmt_num(b['sessions'])} ({fmt_pct(b['engaged_pct'])} engaged)")
+        rows = [fixed_row([("Browser", 12, "l"), ("Sess", 6, "r"), ("Eng%", 5, "r")])]
+        for b in browsers[:BROWSERS_TELEGRAM_LIMIT]:
+            rows.append(fixed_row([(b["name"], 12, "l"), (fmt_num(b["sessions"]), 6, "r"), (fmt_pct(b["engaged_pct"], 0), 5, "r")]))
+        lines.append(code_block(rows))
 
     resolutions = technology.get("resolutions", [])
-    if resolutions:
-        lines.append("Top Resolutions:")
-        for r in resolutions[:5]:
-            lines.append(f"{r['resolution']}: {fmt_num(r['sessions'])}")
+    lines.append("Top Resolutions:")
+    if not resolutions:
+        lines.append("no resolution data")
+    else:
+        rows = [fixed_row([("Resolution", 12, "l"), ("Sessions", 8, "r")])]
+        for r in resolutions[:RESOLUTIONS_TELEGRAM_LIMIT]:
+            rows.append(fixed_row([(r["resolution"], 12, "l"), (fmt_num(r["sessions"]), 8, "r")]))
+        lines.append(code_block(rows))
 
     return "\n".join(lines)
 
@@ -78,6 +87,7 @@ def insights_telegram(data: Dict[str, Any]) -> str:
         lines.append("no insights — not enough data yet")
     else:
         for insight in insights:
-            lines.append(f"{insight['icon']} {insight['message']} → {insight['action']}")
+            lines.append(f"{insight['icon']} {insight['message']}")
+            lines.append(f"   *→ {insight['action']}*")
 
     return "\n".join(lines)

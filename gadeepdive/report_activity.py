@@ -4,9 +4,10 @@
 
 from typing import Any, Dict
 
-from .format import bar, fmt_num, section_header_full, section_header_telegram, sparkline_lines
+from .format import bar, code_block, fixed_row, fmt_num, fmt_pct, section_header_full, section_header_telegram, sparkline_lines
 
 EVENTS_DISPLAY_LIMIT = 15
+EVENTS_TELEGRAM_LIMIT = 10
 
 # ---- events -------------------------------------------------------------------------
 
@@ -33,8 +34,10 @@ def events_telegram(data: Dict[str, Any]) -> str:
     if not events:
         lines.append("no event data")
     else:
-        for e in events[:EVENTS_DISPLAY_LIMIT]:
-            lines.append(f"{e['name']}: {fmt_num(e['count'])} ({e['per_user']:.2f}/user)")
+        rows = [fixed_row([("Event", 14, "l"), ("Count", 7, "r"), ("/User", 6, "r")])]
+        for e in events[:EVENTS_TELEGRAM_LIMIT]:
+            rows.append(fixed_row([(e["name"], 14, "l"), (fmt_num(e["count"]), 7, "r"), (f"{e['per_user']:.2f}", 6, "r")]))
+        lines.append(code_block(rows))
 
     return "\n".join(lines)
 
@@ -76,13 +79,19 @@ def time_patterns_telegram(data: Dict[str, Any]) -> str:
     if not day_of_week:
         lines.append("no day-of-week data")
     else:
+        rows = [fixed_row([("Day", 10, "l"), ("Sess", 6, "r"), ("Eng%", 5, "r")])]
         for d in day_of_week:
-            lines.append(f"{d['day_name']}: {fmt_num(d['sessions'])} (engaged {d['engaged_pct'] * 100:.0f}%)")
+            rows.append(fixed_row([(d["day_name"], 10, "l"), (fmt_num(d["sessions"]), 6, "r"), (fmt_pct(d["engaged_pct"], 0), 5, "r")]))
+        lines.append(code_block(rows))
 
     daily = time_patterns.get("daily", [])
-    if daily:
-        lines.append("Last 7 Days:")
-        for line in sparkline_lines(daily, "date", "sessions"):
-            lines.append(line)
+    lines.append("Daily Sessions:")
+    if not daily:
+        lines.append("no daily data")
+    else:
+        rows = [fixed_row([("Date", 10, "l"), ("Sess", 8, "r")])]
+        for d in daily:
+            rows.append(fixed_row([(d["date"], 10, "l"), (fmt_num(d["sessions"]), 8, "r")]))
+        lines.append(code_block(rows))
 
     return "\n".join(lines)

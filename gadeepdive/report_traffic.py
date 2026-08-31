@@ -4,10 +4,12 @@
 
 from typing import Any, Dict
 
-from .format import fmt_num, fmt_pct, section_header_full, section_header_telegram, star_string
+from .format import code_block, fixed_row, fmt_num, fmt_pct, section_header_full, section_header_telegram, star_string
 
 FIRST_TOUCH_DISPLAY_LIMIT = 8
 GEOGRAPHY_DISPLAY_LIMIT = 10
+FIRST_TOUCH_TELEGRAM_LIMIT = 7
+LANGUAGES_TELEGRAM_LIMIT = 6
 
 # ---- acquisition ------------------------------------------------------------------
 
@@ -55,21 +57,45 @@ def acquisition_telegram(data: Dict[str, Any]) -> str:
     if not channels:
         lines.append("no acquisition data")
     else:
+        rows = [fixed_row([("Channel", 8, "l"), ("Sess", 5, "r"), ("Shr%", 4, "r"), ("Eng%", 4, "r"), ("Bnc%", 4, "r")])]
         for c in channels:
-            lines.append(f"{c['name']}: {fmt_num(c['sessions'])} ({fmt_pct(c['share'])}) engaged {fmt_pct(c['engaged_pct'])}")
+            rows.append(
+                fixed_row(
+                    [
+                        (c["name"], 8, "l"),
+                        (fmt_num(c["sessions"]), 5, "r"),
+                        (fmt_pct(c["share"], 0), 4, "r"),
+                        (fmt_pct(c["engaged_pct"], 0), 4, "r"),
+                        (fmt_pct(c["bounce_pct"], 0), 4, "r"),
+                    ]
+                )
+            )
+        lines.append(code_block(rows))
 
     top_referrer = acquisition.get("top_referrer")
     lines.append(
-        f"Top Referrer: {top_referrer['source_medium']} ({fmt_num(top_referrer['sessions'])})"
+        f"Top Referrer: {top_referrer['source_medium']} — {fmt_num(top_referrer['sessions'])} sessions"
         if top_referrer
-        else "Top Referrer: none"
+        else "Top Referrer: no referral traffic"
     )
 
     first_touch = acquisition.get("first_touch", [])
-    if first_touch:
-        lines.append("First-Touch:")
-        for ft in first_touch[:FIRST_TOUCH_DISPLAY_LIMIT]:
-            lines.append(f"{ft['source']}/{ft['medium']}: {fmt_num(ft['sessions'])} ({fmt_pct(ft['share'])})")
+    if not first_touch:
+        lines.append("First-Touch Attribution: no data")
+    else:
+        lines.append("First-Touch Attribution:")
+        rows = [fixed_row([("Source/Medium", 14, "l"), ("Sess", 5, "r"), ("Shr%", 4, "r")])]
+        for ft in first_touch[:FIRST_TOUCH_TELEGRAM_LIMIT]:
+            rows.append(
+                fixed_row(
+                    [
+                        (f"{ft['source']}/{ft['medium']}", 14, "l"),
+                        (fmt_num(ft["sessions"]), 5, "r"),
+                        (fmt_pct(ft["share"], 0), 4, "r"),
+                    ]
+                )
+            )
+        lines.append(code_block(rows))
 
     return "\n".join(lines)
 
@@ -112,13 +138,28 @@ def geography_telegram(data: Dict[str, Any]) -> str:
     if not countries:
         lines.append("no geography data")
     else:
+        rows = [fixed_row([("Country", 8, "l"), ("Sess", 5, "r"), ("Shr%", 4, "r"), ("Stars", 5, "l")])]
         for c in countries[:GEOGRAPHY_DISPLAY_LIMIT]:
-            lines.append(f"{c['name']}: {fmt_num(c['sessions'])} ({fmt_pct(c['share'])}) {star_string(c['stars'])}")
+            rows.append(
+                fixed_row(
+                    [
+                        (c["name"], 8, "l"),
+                        (fmt_num(c["sessions"]), 5, "r"),
+                        (fmt_pct(c["share"], 0), 4, "r"),
+                        (star_string(c["stars"]), 5, "l"),
+                    ]
+                )
+            )
+        lines.append(code_block(rows))
 
     languages = geography.get("languages", [])
-    if languages:
+    if not languages:
+        lines.append("Languages: no language data")
+    else:
         lines.append("Languages:")
-        for lang in languages[:5]:
-            lines.append(f"{lang['name']}: {fmt_num(lang['sessions'])} ({fmt_pct(lang['share'])})")
+        rows = [fixed_row([("Lang", 10, "l"), ("Sess", 5, "r"), ("Shr%", 4, "r")])]
+        for lang in languages[:LANGUAGES_TELEGRAM_LIMIT]:
+            rows.append(fixed_row([(lang["name"], 10, "l"), (fmt_num(lang["sessions"]), 5, "r"), (fmt_pct(lang["share"], 0), 4, "r")]))
+        lines.append(code_block(rows))
 
     return "\n".join(lines)
