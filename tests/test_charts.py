@@ -2,6 +2,7 @@ import json
 
 import matplotlib.pyplot as plt
 import pytest
+from matplotlib import gridspec
 from matplotlib.patches import FancyBboxPatch
 
 from gadeepdive import charts
@@ -10,9 +11,22 @@ FULL_DATA = {
     "property": "repo-atlas",
     "days": 7,
     "generated_at": "2026-08-31 12:00 UTC",
+    "realtime": {"active_users": 12},
     "executive": {
-        "current": {"sessions": 1570, "activeUsers": 960, "engagementRate": 0.512, "screenPageViews": 3770},
-        "previous": {"sessions": 980, "activeUsers": 700, "engagementRate": 0.40, "screenPageViews": 2500},
+        "current": {
+            "sessions": 1570, "activeUsers": 960, "newUsers": 300, "engagedSessions": 800,
+            "engagementRate": 0.512, "bounceRate": 0.30, "averageSessionDuration": 145.0,
+            "screenPageViewsPerSession": 2.4, "screenPageViews": 3770,
+        },
+        "previous": {
+            "sessions": 980, "activeUsers": 700, "newUsers": 250, "engagedSessions": 600,
+            "engagementRate": 0.40, "bounceRate": 0.50, "averageSessionDuration": 120.0,
+            "screenPageViewsPerSession": 2.0, "screenPageViews": 2500,
+        },
+    },
+    "activity": {
+        "active1DayUsers": 120, "active7DayUsers": 500, "active28DayUsers": 1800,
+        "dauPerWau": 0.24, "dauPerMau": 0.067,
     },
     "health": {
         "scores": {
@@ -37,7 +51,13 @@ FULL_DATA = {
             {"name": "Paid Search", "sessions": 50},
             {"name": "Display", "sessions": 20},
             {"name": "Other", "sessions": 10},
-        ]
+        ],
+        "top_referrer": {"source_medium": "news.ycombinator.com / referral", "sessions": 210},
+        "first_touch": [
+            {"source": "google", "medium": "organic", "sessions": 600, "share": 0.38},
+            {"source": "(direct)", "medium": "(none)", "sessions": 400, "share": 0.25},
+            {"source": "news.ycombinator.com", "medium": "referral", "sessions": 210, "share": 0.13},
+        ],
     },
     "geography": {
         "countries": [
@@ -49,7 +69,57 @@ FULL_DATA = {
             {"name": "Canada", "sessions": 60},
             {"name": "France", "sessions": 40},
             {"name": "Japan", "sessions": 20},
-        ]
+        ],
+        "languages": [
+            {"name": "en-us", "sessions": 900, "share": 0.57},
+            {"name": "pt-br", "sessions": 300, "share": 0.19},
+            {"name": "de-de", "sessions": 200, "share": 0.13},
+        ],
+    },
+    "content": {
+        "sections": [
+            {"section": "/docs", "views": 2200, "engagement_pct": 0.61},
+            {"section": "/blog", "views": 900, "engagement_pct": 0.44},
+            {"section": "/pricing", "views": 500, "engagement_pct": 0.30},
+        ],
+        "trending_up": [
+            {"path": "/docs/quickstart", "pct_change": 0.85},
+            {"path": "/blog/launch", "pct_change": 0.42},
+        ],
+        "problem_pages": [
+            {"path": "/promo/expired-campaign", "bounce_pct": 1.0},
+            {"path": "/legacy/signup", "bounce_pct": 0.72},
+        ],
+    },
+    "segments": {
+        "new_vs_returning": [
+            {"segment": "New", "sessions": 900, "engagement_pct": 0.48},
+            {"segment": "Returning", "sessions": 670, "engagement_pct": 0.58},
+        ],
+        "by_device": [
+            {"device": "mobile", "sessions": 900, "share": 0.57, "engagement_pct": 0.46},
+            {"device": "desktop", "sessions": 600, "share": 0.38, "engagement_pct": 0.55},
+            {"device": "tablet", "sessions": 70, "share": 0.05, "engagement_pct": 0.40},
+        ],
+    },
+    "time_patterns": {
+        "day_of_week": [
+            {"day_name": "Monday", "sessions": 300, "engaged_pct": 0.5},
+            {"day_name": "Tuesday", "sessions": 260, "engaged_pct": 0.48},
+            {"day_name": "Wednesday", "sessions": 280, "engaged_pct": 0.52},
+        ],
+    },
+    "technology": {
+        "browsers": [
+            {"name": "Chrome", "sessions": 1100, "engaged_pct": 0.55},
+            {"name": "Safari", "sessions": 350, "engaged_pct": 0.49},
+            {"name": "Firefox", "sessions": 120, "engaged_pct": 0.51},
+        ],
+        "resolutions": [
+            {"resolution": "1920x1080", "sessions": 500},
+            {"resolution": "390x844", "sessions": 420},
+            {"resolution": "1366x768", "sessions": 200},
+        ],
     },
     "acquisition_over_time": {
         "daily": [
@@ -545,3 +615,396 @@ def test_gsc_panel_uses_the_wider_label_budget(tmp_path, monkeypatch):
     charts.compose_dashboard(data, "repo-atlas", 7, str(tmp_path / "gsc_wide.png"))
     labels = [t.get_text() for t in captured["ax"].get_yticklabels()]
     assert "how to deploy a repo to production" in labels
+
+
+# ---- PART 1 parity panels ------------------------------------------------------------
+
+
+def _panel_fig():
+    fig = plt.figure()
+    gs = gridspec.GridSpec(1, 1, figure=fig)
+    return fig, gs[0]
+
+
+def _all_texts(fig):
+    """All rendered text on a figure: floating `ax.text`/annotate calls, tick
+    labels (bar-list panels label bars via `set_yticklabels`), and text on
+    inset axes (mini-tables), which matplotlib parents under their host axes
+    rather than registering directly on the figure."""
+    result = []
+
+    def _collect(ax):
+        result.extend(t.get_text() for t in ax.texts)
+        result.extend(t.get_text() for t in ax.get_yticklabels())
+        result.extend(t.get_text() for t in ax.get_xticklabels())
+        for child in getattr(ax, "child_axes", []):
+            _collect(child)
+
+    for ax in fig.axes:
+        _collect(ax)
+    return result
+
+
+def _tile_delta(fig, label_upper):
+    """Find the delta text for the tile whose label matches `label_upper`
+    (tiles draw value/label/delta as texts[0]/[1]/[2] on their own axis)."""
+    for ax in fig.axes:
+        texts = ax.texts
+        if len(texts) >= 2 and texts[1].get_text() == label_upper:
+            return texts[2] if len(texts) >= 3 else None
+    return None
+
+
+BASE_EXEC_METRICS = {
+    "sessions": 1000, "activeUsers": 500, "newUsers": 200, "engagedSessions": 400,
+    "engagementRate": 0.5, "bounceRate": 0.4, "averageSessionDuration": 100.0,
+    "screenPageViewsPerSession": 2.0, "screenPageViews": 2000,
+}
+
+
+def test_compose_dashboard_renders_full_part1_parity_data_without_crashing(tmp_path):
+    output_path = str(tmp_path / "part1_full.png")
+    charts.compose_dashboard(_sample_data(), "repo-atlas", 7, output_path)
+    import os
+
+    assert os.path.getsize(output_path) > 0
+
+
+# ---- live now badge -------------------------------------------------------------------
+
+
+def test_draw_live_now_shows_active_user_count():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_live_now(fig, cell, {"active_users": 42})
+        texts = _all_texts(fig)
+        assert any("LIVE NOW" in t and "42" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_live_now_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_live_now(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("No realtime data" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+# ---- KPI tiles: all nine executive-summary metrics -------------------------------------
+
+
+def test_draw_kpi_tiles_includes_all_nine_metrics():
+    executive = {
+        "current": {**BASE_EXEC_METRICS},
+        "previous": {k: v * 0.8 for k, v in BASE_EXEC_METRICS.items()},
+    }
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_kpi_tiles(fig, cell, executive)
+        texts = _all_texts(fig)
+        for label in ["Sessions", "Users", "New Users", "Engaged Sessions", "Engagement Rate",
+                      "Bounce Rate", "Avg Duration", "Pages/Session", "Page Views"]:
+            assert label.upper() in texts, f"missing tile label {label}"
+    finally:
+        plt.close(fig)
+
+
+def test_draw_kpi_tiles_bounce_rate_decrease_is_treated_as_good():
+    executive = {
+        "current": {**BASE_EXEC_METRICS, "bounceRate": 0.30},
+        "previous": {**BASE_EXEC_METRICS, "bounceRate": 0.50},
+    }
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_kpi_tiles(fig, cell, executive)
+        delta = _tile_delta(fig, "BOUNCE RATE")
+        assert delta is not None
+        assert delta.get_color() == charts.STATUS_GOOD
+        assert "▼" in delta.get_text()
+    finally:
+        plt.close(fig)
+
+
+def test_draw_kpi_tiles_bounce_rate_increase_is_treated_as_bad():
+    executive = {
+        "current": {**BASE_EXEC_METRICS, "bounceRate": 0.60},
+        "previous": {**BASE_EXEC_METRICS, "bounceRate": 0.40},
+    }
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_kpi_tiles(fig, cell, executive)
+        delta = _tile_delta(fig, "BOUNCE RATE")
+        assert delta is not None
+        assert delta.get_color() == charts.STATUS_CRITICAL
+        assert "▲" in delta.get_text()
+    finally:
+        plt.close(fig)
+
+
+def test_draw_kpi_tiles_sessions_increase_is_treated_as_good():
+    executive = {
+        "current": {**BASE_EXEC_METRICS, "sessions": 1200},
+        "previous": {**BASE_EXEC_METRICS, "sessions": 1000},
+    }
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_kpi_tiles(fig, cell, executive)
+        delta = _tile_delta(fig, "SESSIONS")
+        assert delta.get_color() == charts.STATUS_GOOD
+        assert "▲" in delta.get_text()
+    finally:
+        plt.close(fig)
+
+
+def test_draw_kpi_tiles_degrades_to_zero_values_and_em_dash_deltas_when_missing():
+    """The KPI grid always shows all nine metric tiles (fixed spec, not
+    data-gated) — its degrade-on-missing-data behavior is zero values and
+    em-dash deltas rather than swapping the whole panel for an empty-state
+    label."""
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_kpi_tiles(fig, cell, {})
+        texts = _all_texts(fig)
+        assert "SESSIONS" in texts
+        assert "BOUNCE RATE" in texts
+        assert "—" in texts
+    finally:
+        plt.close(fig)
+
+
+# ---- user activity: DAU/WAU/MAU + stickiness --------------------------------------------
+
+
+def test_draw_user_activity_shows_dau_wau_mau_and_stickiness_chips():
+    activity = {"active1DayUsers": 120, "active7DayUsers": 500, "active28DayUsers": 1800,
+                "dauPerWau": 0.24, "dauPerMau": 0.067}
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_user_activity(fig, cell, activity)
+        texts = _all_texts(fig)
+        for label in ["DAU", "WAU", "MAU", "DAU/WAU", "DAU/MAU"]:
+            assert label.upper() in texts
+    finally:
+        plt.close(fig)
+
+
+def test_draw_user_activity_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_user_activity(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("No user activity data available" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+# ---- acquisition detail: top referrer + first-touch attribution -------------------------
+
+
+def test_draw_acquisition_detail_renders_top_referrer_and_attribution_table():
+    acquisition = {
+        "top_referrer": {"source_medium": "news.ycombinator.com / referral", "sessions": 210},
+        "first_touch": [{"source": "google", "medium": "organic", "sessions": 600, "share": 0.38}],
+    }
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_acquisition_detail(fig, cell, acquisition)
+        texts = _all_texts(fig)
+        assert any("news.ycombinator.com" in t for t in texts)
+        assert any("google" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_acquisition_detail_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_acquisition_detail(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("No attribution data available" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+# ---- geography languages -----------------------------------------------------------------
+
+
+def test_draw_geography_languages_renders_bars():
+    geography = {"languages": [{"name": "en-us", "sessions": 900, "share": 0.57}]}
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_geography_languages(fig, cell, geography)
+        texts = _all_texts(fig)
+        assert any("en-us" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_geography_languages_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_geography_languages(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("No language data available" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+# ---- content: section bars, trending up, problem pages -----------------------------------
+
+
+def test_draw_content_bars_renders_sections():
+    content = {"sections": [{"section": "/docs", "views": 2200, "engagement_pct": 0.61}]}
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_content_bars(fig, cell, content)
+        texts = _all_texts(fig)
+        assert any("/docs" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_content_bars_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_content_bars(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("No content data available" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_content_lists_renders_trending_and_problem_pages():
+    content = {
+        "trending_up": [{"path": "/docs/quickstart", "pct_change": 0.85}],
+        "problem_pages": [{"path": "/promo/expired-campaign", "bounce_pct": 1.0}],
+    }
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_content_lists(fig, cell, content)
+        texts = _all_texts(fig)
+        assert any("/docs/quickstart" in t for t in texts)
+        assert any("/promo/expired-campaign" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_content_lists_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_content_lists(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("no WoW gainers" in t for t in texts)
+        assert any("none" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+# ---- user segments: new vs returning + device breakdown -----------------------------------
+
+
+def test_draw_user_segments_renders_new_vs_returning_and_device_bars():
+    segments = {
+        "new_vs_returning": [{"segment": "New", "sessions": 900, "engagement_pct": 0.48}],
+        "by_device": [{"device": "mobile", "sessions": 900, "share": 0.57}],
+    }
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_user_segments(fig, cell, segments)
+        texts = _all_texts(fig)
+        assert any("New" in t for t in texts)
+        assert any("mobile" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_user_segments_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_user_segments(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("No segment data available" in t for t in texts)
+        assert any("No device data available" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+# ---- events: full bar list ------------------------------------------------------------------
+
+
+def test_draw_events_full_renders_top_events_with_per_user_annotation():
+    events_data = {"events": [{"name": "page_view", "count": 5000, "per_user": 5.2}]}
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_events_full(fig, cell, events_data)
+        texts = _all_texts(fig)
+        assert any("page_view" in t for t in texts)
+        assert any("/user" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_events_full_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_events_full(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("No event data available" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+# ---- time patterns: day of week --------------------------------------------------------------
+
+
+def test_draw_day_of_week_renders_bars():
+    time_patterns = {"day_of_week": [{"day_name": "Monday", "sessions": 300, "engaged_pct": 0.5}]}
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_day_of_week(fig, cell, time_patterns)
+        texts = _all_texts(fig)
+        assert any("Monday" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_day_of_week_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_day_of_week(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("No day-of-week data available" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+# ---- technology: browsers + resolutions --------------------------------------------------------
+
+
+def test_draw_technology_renders_browsers_and_resolutions():
+    technology = {
+        "browsers": [{"name": "Chrome", "sessions": 1100, "engaged_pct": 0.55}],
+        "resolutions": [{"resolution": "1920x1080", "sessions": 500}],
+    }
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_technology(fig, cell, technology)
+        texts = _all_texts(fig)
+        assert any("Chrome" in t for t in texts)
+        assert any("1920x1080" in t for t in texts)
+    finally:
+        plt.close(fig)
+
+
+def test_draw_technology_empty_state_when_missing():
+    fig, cell = _panel_fig()
+    try:
+        charts._draw_technology(fig, cell, {})
+        texts = _all_texts(fig)
+        assert any("No browser data available" in t for t in texts)
+        assert any("No resolution data available" in t for t in texts)
+    finally:
+        plt.close(fig)
